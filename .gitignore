@@ -1,0 +1,37 @@
+# ---- Sanal ortam ----
+.venv/
+venv/
+env/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---- Üretilmiş eğitim verisi (büyük; üretim talimatı README'de) ----
+data/*
+!data/.gitkeep
+!data/README.md
+
+# ---- Büyük paket logları (opsiyonel parquet, §5.19) ----
+*.parquet
+
+# ---- Geçici deney çıktıları (CSV/PNG/JSON sonuçlar repoda KALIR) ----
+results/**/*.tmp
+results/**/*.log
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Gizli bilgi: token/parola repoya girmemeli (CLAUDE.md §1) ----
+.env
+*.secret

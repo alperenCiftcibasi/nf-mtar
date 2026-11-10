@@ -1,0 +1,61 @@
+# =============================================================================
+# configs/paper_reference.yaml — Makalenin raporladığı değerler (karşılaştırma için)
+#
+# Kaynak: M. Shabana Parveen ve P. T. V. Bhuvaneswari, "A neuro-fuzzy multi-topology
+# adaptive routing framework for QoS-aware healthcare IoT communications",
+# Scientific Reports 16:3330 (2026), doi:10.1038/s41598-025-33235-9.
+# Değerler CLAUDE.md §5.19'dan aktarıldı; experiments/analysis/paper_comparison.py
+# bu dosyayı okuyup results/tables/paper_comparison.csv üretir.
+# Sayısal birebir uyum beklenmez; trend ve göreli farklar karşılaştırılır (§2).
+# =============================================================================
+
+source:
+  authors: "M. Shabana Parveen, P. T. V. Bhuvaneswari"
+  journal: "Scientific Reports"
+  volume: 16
+  article: 3330
+  year: 2026
+  doi: "10.1038/s41598-025-33235-9"
+
+# Makaledeki yöntem adı -> bizim karşılığımız (karşılaştırma tablosu için)
+method_mapping:
+  NF-MTAR: NF-MTAR
+  RPL: B1-plain          # geleneksel RPL benzeri referans (§5.12)
+  TSFIS-GWO: null        # bizde karşılığı yok; yalnızca makale sütununda gösterilir
+
+classes: [critical, regular, noncritical]   # E / L / R topolojileriyle eşleşir
+
+# Şekil 4a — trafik türüne göre throughput (%)
+throughput_pct_by_class:
+  NF-MTAR: {critical: 95.2, regular: 87.3, noncritical: 78.9}
+  RPL:     {critical: 71.4, regular: 68.2, noncritical: 62.1}
+
+# Şekil 5a — trafik türüne göre uçtan uca gecikme (ms)
+latency_ms_by_class:
+  NF-MTAR: {critical: 18.4, regular: 45.2, noncritical: 89.7}
+  RPL:     {critical: 67.3, regular: 94.8, noncritical: 156.2}
+
+# Tablo 4 — toplu karşılaştırma
+table4:
+  NF-MTAR:   {throughput_pct: 94.3, latency_ms: 18.4, pdr_pct: 98.7, qos_pct: 97.3}
+  TSFIS-GWO: {throughput_pct: 86.4, latency_ms: 38.9, pdr_pct: 97.2, qos_pct: 93.8}
+
+# Şekil 6b — ölçeklenebilirlik: düğüm sayısı -> gecikme (ms), NF-MTAR  (E2)
+scalability_latency_ms:
+  NF-MTAR: {20: 12, 50: 15, 100: 20, 150: 24, 200: 28}
+
+# Şekil 6d — atlama sayısı -> gecikme (ms)  (E3)
+latency_vs_hops_ms:
+  NF-MTAR: {1: 8, 2: 12, 3: 16, 5: 24, 10: 42}
+  RPL:     {1: 28, 2: 48, 3: 72, 5: 120, 10: 200}
+
+# Şekil 6c — kritik paket boyutu (B) -> gecikme (ms), NF-MTAR  (E4)
+latency_vs_packet_size_ms:
+  NF-MTAR: {64: 9, 128: 13, 256: 17, 512: 23, 1024: 29}
+
+# §5.14 kalibrasyon raporu: makalede örneklenen kuralların çıktıları
+# (girdi terimleri makaledeki kural tablosundan alınacak; fark log'a yazılır, test başarısız olmaz)
+fuzzy_rule_outputs:
+  1: 0.95
+  47: 0.78
+  98: 0.15

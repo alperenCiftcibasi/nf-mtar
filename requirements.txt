@@ -1,0 +1,12 @@
+# NF-MTAR yeniden gerçekleştirme — bağımlılıklar (CLAUDE.md §3)
+# Sürümler sabit; 10 Kasım 2026'da PyPI'daki güncel sürümler (pip index versions ile doğrulandı).
+# Python >= 3.11 gerekir.
+numpy==2.5.4          # vektörize bulanık çıkarım, rastgelelik (numpy Generator)
+networkx==3.7         # fiziksel ağ çizgesi, alt çizgeler, Dijkstra
+scipy==1.18.1         # istatistik testleri (eşleştirilmiş t, Wilcoxon, Friedman)
+pandas==3.1.1         # runs.csv, paket logları, tablolar
+matplotlib==3.11.2    # results/figures/ grafikleri
+pyyaml==6.0.3         # configs/*.yaml okuma
+torch==2.15.0         # bulanık parametrelerin eğitimi (ANFIS tarzı, autograd)
+pyarrow==26.0.1       # opsiyonel parquet paket logu (§5.19)
+pytest==9.2.0         # tests/

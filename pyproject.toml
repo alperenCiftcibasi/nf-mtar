@@ -1,0 +1,17 @@
+# Minimal paket tanımı: src/ düzeninde `pip install -e .` ile `import nfmtar` çalışsın diye.
+# Bağımlılık sürümleri requirements.txt'te sabitlenmiştir (CLAUDE.md §3).
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nfmtar"
+version = "0.1.0"
+description = "NF-MTAR (neuro-fuzzy multi-topology adaptive routing) re-implementation for a fuzzy logic course project"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
