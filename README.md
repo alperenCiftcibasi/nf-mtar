@@ -103,6 +103,19 @@ pytest
 
 ## How to Run
 
+Available now:
+
+```bash
+# draw the physical network and the V-SDN partition for one seed
+python experiments/analysis/plot_topology.py --seed 1            # -> results/figures/topology.png
+python experiments/analysis/plot_topology.py --set placement.random.r_placement=uniform --out results/figures/topology_uniform.png
+
+# E0: connectivity analysis of the disjoint partition (uniform vs region placement, 30 seeds)
+python experiments/analysis/e0_connectivity.py                   # -> results/tables/e0_connectivity*.csv, results/figures/e0_topology_uniform_vs_region.png
+
+pytest                                                           # unit tests (tests/)
+```
+
 TODO: fill in as scripts are added. Planned entry points:
 
 ```bash

@@ -32,8 +32,10 @@ network:                                 # §5.1 fiziksel ağ
   n_nodes_range: [100, 200]              # §5.1 bilgi amaçlı aralık
   radio_range_m: 50.0                    # §5.1 radyo menzili (makaleden)
   topology_model: unit_disk              # §5.1 mesafe <= R olan düğümler arasında kenar (COOJA UDGM benzeri)
-  require_connected: true                # §5.1 bağlı değilse yeni seed ile yeniden üret (log'a yaz)
-  max_regen_attempts: 100                # §5.1 yeniden üretim deneme üst sınırı (varsayılan; CLAUDE.md'de sayı yok)
+  enforce_partition_connectivity: true   # §5.1 yeniden üretim ölçütü: her topoloji kendi edge router'ına bağlı (strict);
+                                         #      shared modda (§5.9) ayrıca fiziksel ağ bağlı. false = E0 analizi, yalnızca ölç
+  max_regen_attempts: 100                # §5.1 yeniden üretim deneme üst sınırı (varsayılan; CLAUDE.md'de sayı yok);
+                                         #      deneme sayısı loglanır ve runs.csv'ye yazılır (seçim yanlılığı)
 
 placement:                               # §5.2 yerleşim (hastane senaryosu yorumu)
   class_ratio: {E: 0.3, L: 0.4, R: 0.3}  # §5.2 sınıf oranları E/L/R
@@ -44,8 +46,11 @@ placement:                               # §5.2 yerleşim (hastane senaryosu yo
     axis: x                              # (varsayılan) koridor x ekseni boyunca
     center_frac: 0.85                    # (varsayılan) şeridin dik eksendeki konumu, alan oranı
     width_m: 20.0                        # (varsayılan; CLAUDE.md'de sayı yok) şerit genişliği
-  random:                                # §5.2 kritik olmayan: alana düzgün dağılım
-    distribution: uniform
+  random:                                # §5.2 kritik olmayan (R)
+    r_placement: region                  # §5.2 region (varsayılan): Edge-R'ye bitişik dikdörtgende düzgün rastgele;
+                                         #      uniform: bütün alana düzgün — YALNIZCA E0 analizi için (ort. ~%43 kopuk R)
+    r_target_degree: 10                  # §5.2 bölge alanı A_R = n_R · π · R² / r_target_degree (E2'de kendiliğinden ölçeklenir)
+    region_aspect: 1.0                   # (varsayılan; CLAUDE.md'de sayı yok) dikdörtgen genişlik/yükseklik oranı
 
 partition:                               # §5.3 bölümleme
   assignment: deterministic              # §5.3 Denk. 2 olasılıkları tanımsız -> one-hot
@@ -150,6 +155,9 @@ router:                                  # §5.9 yol seçimi
   normalize_lambdas: true                # §5.9 λ3 = π6 alınır; λ1, λ2 buradaki oranla (1 - λ3)'ü paylaşır -> toplam 1
   prr_min: 0.05                          # §5.9 L_max = -log(PRR_min)
   algorithm: dijkstra_reverse            # §5.9 edge router'dan ve root'tan ters yönlü tek kaynaklı Dijkstra
+  relay_mode: strict                     # §5.9 strict (varsayılan, makaleye sadık): yol yalnızca kendi topolojisinin alt çizgesinde;
+                                         #      shared: yol fiziksel ağda, diğer topolojilerin düğümleri yalnızca aktarıcı —
+                                         #      YALNIZCA ablasyon/katkı ve E0. router.py yazılırken uygulanacak; §5.1 regen ölçütünü etkiler
   b1:
     edge_cost: hop                       # §5.9 B1 kenar maliyeti = 1 (atlama sayısı)
   b2:
@@ -277,6 +285,16 @@ metrics:                                 # §5.13
   decision_runtime_ms: true              # §5.13 karar turu başına çalışma süresi
 
 experiments:                             # §5.19
+  E0:                                    # bağlantısallık analizi: ayrık bölümlemenin bedeli (makalede tartışılmamış)
+    placements: [uniform, region]        # §5.2 r_placement değerleri
+    n_seeds: 30
+    enforce_partition_connectivity: false   # §5.1 yeniden üretim yok, yalnızca ölçüm
+    outputs: [disconnected_per_topology, disconnected_with_physical_path_share, subgraph_mean_degree,
+              regen_attempts_when_enforced]
+    table: results/tables/e0_connectivity.csv
+    summary_table: results/tables/e0_connectivity_summary.csv
+    figure: results/figures/e0_topology_uniform_vs_region.png   # yan yana, aynı seed
+    optional_after_router: strict_vs_shared_r_pdr_10_seeds      # §5.19 opsiyonel (router.py sonrası)
   E1:                                    # ana tekrar deneyi (makale Şekil 4a, 5a, Tablo 4)
     n_nodes: 150
     area_m: [300.0, 300.0]

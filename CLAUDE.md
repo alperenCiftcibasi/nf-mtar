@@ -99,13 +99,29 @@ fuzzy-logic-project/
 - Düğüm sayısı: 100–200 (varsayılan 150). Radyo menzili: 50 m (makaleden).
 - Fiziksel topoloji: unit disk graph — mesafesi ≤ 50 m olan düğümler arasında kenar
   (COOJA'nın varsayılan UDGM radyo ortamıyla benzer).
-- Fiziksel ağ bağlı olmalı; değilse yeni seed ile yeniden üret (log'a yaz).
+- Yeniden üretim ölçütü (strict modda): her topolojinin indüklenmiş alt çizgesi kendi edge router'ına bağlı
+  olmalı; değilse `default_rng([seed, deneme])` ile yeniden üret. Fiziksel ağın tamamının bağlı olması strict
+  modda aranmaz (yollar zaten topoloji içinde). shared modda (§5.9) ayrıca fiziksel ağın bağlılığı aranır.
+  Deneme sayısı loglanır ve runs.csv'ye yazılır (seçim yanlılığı raporlanabilsin).
+  E0 analizinde (`enforce_partition_connectivity: false`) yeniden üretim yapılmaz, yalnızca ölçülür.
 
 ### 5.2 Yerleşim ve topoloji isimlerinin anlamı
 Makale "eliptik/doğrusal/rastgele" topolojileri biçimsel olarak tanımlamıyor. Yorumumuz (hastane senaryosu):
 - **Eliptik (kritik):** düğümler alan içindeki bir elips bölgede (yoğun bakım) sıkı küme halinde.
 - **Doğrusal (düzenli):** düğümler bir koridor boyunca (dar dikdörtgen şerit).
-- **Rastgele (kritik olmayan):** düğümler alana düzgün dağılımla.
+- **Rastgele (kritik olmayan):** düğümler Edge-R'ye bitişik dikdörtgen bir bölgede düzgün rastgele
+  (`r_placement: region`, varsayılan). Bölge alanı A_R = n_R · π · R² / r_target_degree
+  (varsayılan r_target_degree = 10; 45 düğüm için ≈ 35.000 m², ör. ~190 × 185 m). Bölge boyutları E2'de
+  yoğunluk sabit ölçeklemeyle birlikte ölçeklenir.
+  `r_placement: uniform` (bütün alana düzgün) YALNIZCA E0 analizi için korunur. E0 bulgusu (30 seed, yeniden
+  üretimsiz): uniform yerleşimde R sensörlerinin ortalama 32,1/45'i (%71; en az 8, en çok 45) kendi alt çizgesinde
+  kopuk; kopukların yalnızca %42'sinin fiziksel yolu var; fiziksel ağ seed'lerin yalnızca %7'sinde bağlı; zorunlu
+  yeniden üretimde 100 denemede başarı %23. Region yerleşimde kopuk R ortalama 0,53/45 (%1,2), zorunlu yeniden
+  üretim ortalama 0,23 deneme (en çok 2), başarı %100. İlk koşudaki 19,5/45 değeri fiziksel bağlılığa koşullanmış
+  bir örneklemdi (seçim yanlılığı örneği; raporda kullanılacak). Makalenin tartışmadığı risk.
+  Region modunda R alt çizgesinin etkin ortalama derecesi ~7,7 (r_target_degree = 10, sınır etkisi hariç nominal).
+  R bölgesi E elipsiyle fiziksel olarak örtüşebilir: strict modda yolları etkilemez, paylaşılan kanalda sınıflar
+  arası çekişmeyi etkiler (bilinçli, gerçekçi; §5.5).
 Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 
 ### 5.3 Bölümleme
@@ -127,7 +143,15 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 - Atlama başına gecikme = kuyruk bekleme + parça_sayısı × (çerçeve_bit / 250000)
   + CSMA/CA geri çekilme (rastgele, 0–7 × 320 µs, parça başına) + işlem süresi (config).
 - Gecikme bileşenleri (kuyruk, iletim, geri çekilme, işlem) paket logunda ayrı tutulsun.
-- **Paylaşılan kanal:** üç topoloji aynı kanal kapasitesini paylaşır.
+- **Paylaşılan kanal, yerel çekişme:** kanal ağ genelinde tek bir 250 kbit/s havuz DEĞİLDİR (mekânsal yeniden
+  kullanım olmazsa ağ anında doyar). Bir düğüm, taşıyıcı algılama menzilindeki (`cs_range`, varsayılan 50 m) başka
+  bir düğüm iletim yaparken iletime başlayamaz; CSMA/CA geri çekilmesiyle yeniden dener. Gizli terminal
+  çarpışmaları modellenmez; kayıplar PRR ile temsil edilir (COOJA UDGM'ye benzer basitleştirme).
+- **Sınıf önceliği MAC'te (π1, π2):** strict modda bir düğüm yalnızca kendi sınıfını taşıdığından sınıflar ancak
+  paylaşılan ortamda karşılaşır. Öncelik 802.11e EDCA benzeri sınıf bazlı geri çekilmeyle uygulanır:
+  macMinBE kritik 2, düzenli 3, kritik olmayan 5; macMaxBE 5 (config). π1'in 80/15/5 hedefi bu yolla yaklaşık
+  sağlanır; sınıf bazında ulaşılan airtime payı ölçülüp raporlanır. B1-plain: bütün sınıflar BE 3, tek FIFO kuyruk.
+- shared modda aktarıcı düğümde sınıf başına kuyruk, π2'ye göre katı öncelikli servis.
 - Link kalitesi: mesafeye bağlı PRR, menzile yaklaştıkça düşen lojistik fonksiyon (parametreler config).
 - Enerji: birinci dereceden radyo modeli (E_elec = 50 nJ/bit, ε_amp = 100 pJ/bit/m²);
   başlangıç enerjisi config (varsayılan 2 J). Enerjisi biten düğüm ölür.
@@ -140,8 +164,8 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 
 | Parametre | E | L | R | Kullanım |
 |---|---|---|---|---|
-| π1 Bant genişliği payı (%) | 80 | 15 | 5 | Kanal iletim fırsatlarının ağırlıklı dağıtımı |
-| π2 Öncelik (1–7) | 7 | 4 | 1 | Kuyruk öncelik sırası |
+| π1 Bant genişliği payı (%) | 80 | 15 | 5 | Hedef; MAC'te sınıf bazlı geri çekilmeyle yaklaşık uygulanır, ulaşılan airtime payı ölçülür (§5.5) |
+| π2 Öncelik (1–7) | 7 | 4 | 1 | MAC geri çekilme sırası; shared modda aktarıcı kuyruk önceliği (§5.5) |
 | π3 Maks. gecikme (ms) | 25 | 100 | 500 | Metrik eşiği |
 | π4 Min. throughput (%) | 95 | 85 | 70 | Metrik eşiği |
 | π5 Kayıp toleransı (%) | 0.1 | 1 | 5 | Metrik eşiği |
@@ -173,6 +197,10 @@ Kenar maliyeti (u -> v), tüm terimler [0,1]'e normalize:
 - B1: kenar maliyeti = 1 (atlama sayısı)
 - Dijkstra, topoloji alt çizgesinde, TERS yönde tek kaynaklı:
   edge router'dan -> tüm adayların H ve C değerleri; root'tan -> tüm sensörlerin yolları.
+- `relay_mode: {strict, shared}`, varsayılan strict (makaleye sadık: yol yalnızca kendi topolojisinin alt
+  çizgesinde). shared: yol fiziksel ağda aranır, diğer topolojilerin düğümleri yalnızca aktarıcıdır; root
+  seçimi ve politika yine kendi topolojisine aittir; aktarıcı düğümde paket kendi sınıfının π1/π2 kuralıyla
+  kuyruğa girer. shared YALNIZCA ablasyon/katkı (ayrık vs örtüşen bölümleme) ve E0 içindir.
 
 ### 5.10 Kapalı döngü simülasyon
 Her topoloji için, tetikleyici geldiğinde (§5.18):
@@ -211,6 +239,7 @@ class ScoringStrategy(Protocol):
 - PDR ve normalize throughput (iletilen/üretilen; sınıf bazında ve toplam) + mutlak throughput (kbit/s)
 - Uçtan uca gecikme: ortalama, medyan, 90/95/99. yüzdelik, CDF (sınıf bazında)
 - Gecikme bileşenleri (kuyruk / iletim / geri çekilme / işlem)
+- Sınıf bazında ulaşılan airtime payı (π1 hedefiyle karşılaştırma)
 - Toplam enerji; ağ ömrü FND ve HND
 - QoS memnuniyet oranı (§5.7)
 - Φ (makale Denk. 6'nın düzeltilmiş hali, α/β/γ config'den) — değerlendirme metriği
@@ -323,6 +352,13 @@ Ablasyon bayrakları: ε ∈ {0, 0.02, 0.05, 0.1, 0.2}, confidence_gate, root_he
   Paket logu (opsiyonel parquet): oluşturma/teslim zamanı, sınıf, atlama sayısı, gecikme bileşenleri, kayıp nedeni.
 - Ana karşılaştırmada B1, B2, B3, NF-MTAR aynı V-SDN bölümlemesi ve zamanlamasını (π1, π2, π9, π10) paylaşır;
   fark yalnızca root/yol/puanlama. B1-plain politika etkisini ayırmak için.
+
+**E0 — Bağlantısallık analizi (ayrık bölümlemenin bedeli; makalede tartışılmamış):**
+- r_placement ∈ {uniform, region} × 30 seed, `enforce_partition_connectivity: false` (yeniden üretim yok)
+- Topoloji başına kopuk sensör sayısı (ort / min / max), kopukların fiziksel yolu olanların oranı,
+  alt çizge ortalama derecesi; region modunda ayrıca zorunlu yeniden üretimdeki deneme sayısı (ort / max)
+- Opsiyonel (router.py sonrası): uniform yerleşimde strict vs shared ile R sınıfı PDR'si (kısa koşu, 10 seed)
+- Çıktı: results/tables/e0_connectivity.csv; results/figures/e0_topology_uniform_vs_region.png (yan yana)
 
 **E1 — Trafik türüne göre throughput/PDR/gecikme (makale Şekil 4a, 5a, Tablo 4) [ANA TEKRAR DENEYİ]:**
 - N = 150, 300×300 m, simülasyon 600 s, 30 seed
