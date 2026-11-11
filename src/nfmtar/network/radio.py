@@ -24,6 +24,10 @@ Uygulanan kararlar:
   her çerçeve denemesinde gönderici ve alıcı `NodeState.consume` ile düşer, enerjisi biten düğüm ölür.
   Sınırlılıklar (raporda): ACK çerçeveleri, CCA süresi ve boşta dinleme enerjisi modellenmez.
 - §5.7 π9: kuyruk kapasitesi `PacketQueue`'dadır (graph.py); bu modül yalnızca MAC/PHY'yi modeller.
+- §5.5 zamanlama kuralı (tek kaynak): bir düğüm sıradaki pakete, önceki paketin son MAC etkinliğinden
+  `radio.processing_delay_s` (config) sonra başlar — `RadioModel.next_packet_ready_s`. Aynı değer atlama
+  gecikmesinin işlem bileşenidir. `saturated_sender` (AIFS kalibrasyonu) ve simulation.py'deki düğüm servis
+  döngüsü yalnızca bu fonksiyonu kullanır; kural değişirse kalibrasyon yeniden koşturulmalıdır.
 
 Olay akışı: `send_packet` bir üreteçtir. Her `t_wake = yield t_wake` "beni t_wake anında uyandır" demektir;
 simulation.py ve buradaki `run_mac_sessions` mini sürücüsü üreteçleri zaman sırasıyla ilerletir. Bu sayede
@@ -127,6 +131,16 @@ class RadioModel:
     def rx_energy_J(self, bits: int) -> float:
         """Birinci dereceden radyo modeli, alım: E_elec·k (§5.5)."""
         return self.e_elec_J_per_bit * bits
+
+    def next_packet_ready_s(self, result: "HopResult") -> float:
+        """§5.5 zamanlama kuralı: düğüm sıradaki pakete, önceki paketin son MAC etkinliğinden processing_delay_s sonra başlar.
+
+        Başarıda bu an HopResult.t_end'dir (send_packet işlem süresini zaten eklemiştir); kayıpta t_end kaybın anıdır
+        ve işlem süresi burada eklenir. Kural başarı/kayıp ayrımı yapmaz: her paket, bitişinden sonra düğümü
+        processing_delay_s kadar meşgul eder. Tek kaynak: doygun gönderici (kalibrasyon) ve simulation.py düğüm
+        servis döngüsü yalnızca bu fonksiyonu kullanır.
+        """
+        return result.mac_end_s + self.processing_delay_s
 
 
 # --------------------------------------------------------------------------- #
@@ -307,6 +321,11 @@ class HopResult:
         """Atlama gecikmesi = kuyruk + geri çekilme + iletim + işlem (§5.5)."""
         return self.queue_s + self.backoff_s + self.transmission_s + self.processing_s
 
+    @property
+    def mac_end_s(self) -> float:
+        """Son MAC etkinliğinin (çerçeve veya geri çekilme) bitiş anı = t_end − işlem süresi; kayıpta t_end (§5.5 zamanlama kuralı)."""
+        return self.t_end - self.processing_s
+
     def components(self) -> dict[str, float]:
         """Paket logu için gecikme bileşenleri (§5.13)."""
         return {
@@ -444,9 +463,10 @@ def saturated_sender(
 ) -> Generator[float, float, None]:
     """Doygun kaynak: kuyruğu hiç boşalmayan gönderici (§5.5 AIFS kalibrasyonu ve testler).
 
-    Sıradaki paket, önceki paketin atlaması tamamlandığı anda (HopResult.t_end; başarıda işlem süresi dahil)
-    çekişmeye girer. Yani tek çerçevelik paketler arasında işlem süresi kadar (varsayılan 1 ms ≈ 3 slot) boşluk
-    vardır; aynı paketin parçaları arasında yoktur. Ölçülen paylar bu kurala duyarlıdır (bkz. mac_aifs.py).
+    Sıradaki paket `radio.next_packet_ready_s` anında (§5.5 zamanlama kuralı: önceki paketin son MAC etkinliği +
+    config `radio.processing_delay_s`) çekişmeye girer. Yani paketler arasında işlem süresi kadar boşluk vardır;
+    aynı paketin parçaları arasında yoktur. Ölçülen paylar bu kurala duyarlıdır: boşluksuz modelde yüksek AIFS'li
+    sınıflar tamamen aç kalır (bkz. mac_aifs.py). simulation.py'deki düğüm servis döngüsü aynı fonksiyonu kullanır.
     Her paketin HopResult'ı `log`'a eklenir. Üreteç kendiliğinden bitmez; `run_mac_sessions(until_s=...)` keser.
     Gönderici veya alıcı ölürse durur.
     """
@@ -456,7 +476,7 @@ def saturated_sender(
             radio, backoff, channel, rng, sender, receiver, next_packet_bytes(), traffic_class, retransmit_limit, now=t
         )
         log.append(result)
-        t = result.t_end
+        t = radio.next_packet_ready_s(result)
 
 
 def run_mac_sessions(

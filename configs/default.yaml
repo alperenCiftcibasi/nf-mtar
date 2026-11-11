@@ -79,14 +79,16 @@ radio:                                   # §5.5 IEEE 802.15.4
   csma:                                  # §5.5 sınıf bazlı CSMA/CA (802.11e EDCA benzeri): π1 hedefi, π2 sırası MAC'te
     backoff_slot_s: 0.00032              # §5.5 320 us slot; geri çekilme = U{0..2^BE-1} slot, parça başına
     mac_min_be: {critical: 2, regular: 3, noncritical: 5}   # §5.5 (a) macMinBE sınıf bazlı (π2 sırası: 7 > 4 > 1)
-    aifs_slots: {critical: 0, regular: 4, noncritical: 7}   # §5.5 (b) sınıf bazlı AIFS (slot): kanal boşaldıktan sonra geri çekilmeden önce sabit ek bekleme; kritik 0, diğerleri experiments/calibration/mac_aifs.py yazar; B1-plain'de hep 0
+    aifs_slots: {critical: 0, regular: 5, noncritical: 7}   # §5.5 (b) sınıf bazlı AIFS (slot): kanal boşaldıktan sonra geri çekilmeden önce sabit ek bekleme; kritik 0, diğerleri experiments/calibration/mac_aifs.py yazar; B1-plain'de hep 0
     mac_max_be: 5                        # §5.5 macMaxBE
     max_csma_backoffs: 4                 # 802.15.4 macMaxCSMABackoffs (varsayılan); aşılınca kanal erişim hatası = bir yeniden deneme (π10)
     plain_be: 3                          # §5.5 B1-plain: bütün sınıflar BE 3 (0–7 slot), tek FIFO kuyruk
   cs_range_m: 50.0                       # §5.5 taşıyıcı algılama menzili: bu menzilde iletim varken iletime başlanamaz
   channel_model: local_contention        # §5.5 kanal ağ genelinde tek 250 kbit/s havuz DEĞİL; mekânsal yeniden kullanım var,
                                          #      gizli terminal çarpışmaları modellenmez (kayıplar PRR ile; COOJA UDGM benzeri)
-  processing_delay_s: 0.001              # §5.5 işlem süresi (varsayılan; CLAUDE.md'de sayı yok)
+  processing_delay_s: 0.001              # §5.5 işlem süresi: atlama gecikmesinin son bileşeni VE zamanlama kuralı (sıradaki paket son
+                                         #      MAC etkinliğinden bu kadar sonra hazır; RadioModel.next_packet_ready_s). Tek kaynak: doygun
+                                         #      gönderici (kalibrasyon) ve simulation.py düğüm servis döngüsü yalnızca bu değeri kullanır
   delay_components: [queue, backoff, transmission, processing]  # §5.5, §5.13 paket logunda ayrı tutulur
   prr:                                   # §5.5 mesafeye bağlı lojistik PRR (menzile yaklaştıkça düşer)
     model: logistic                      # PRR(d) = prr_max / (1 + exp(k * (d - d_mid)))
@@ -307,8 +309,8 @@ experiments:                             # §5.19
     duration_s: 20.0                     # §5.5 koşu süresi
     n_seeds: 5                           # §5.5
     grid:                                # §5.5 taranan AIFS değerleri (slot); kritik sınıf config'deki değerinde (0) kalır
-      regular: [0, 1, 2, 4, 6]
-      noncritical: [2, 4, 7, 10, 14]
+      regular: [0, 1, 2, 3, 4, 5, 6]
+      noncritical: [2, 4, 5, 6, 7, 8, 10]
     link_distance_m: 10.0                # (varsayılan; CLAUDE.md'de sayı yok) gönderici -> alıcı mesafesi
     pair_spacing_m: 10.0                 # (varsayılan; CLAUDE.md'de sayı yok) gönderici çiftleri arası mesafe (hepsi cs_range içinde)
     objective: l1_to_pi1                 # §5.5 hedefe L1 uzaklığı en küçük çift seçilir ve radio.csma.aifs_slots'a yazılır

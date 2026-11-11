@@ -14,8 +14,10 @@ AIFS'si config'deki değerinde (0) kalır. Her çift için sınıf bazında ula�
 - backoff_only: V-SDN politikası açık, AIFS hepsi 0  -> yalnızca (a) sınıf bazlı geri çekilme
 - b1_plain:     V-SDN politikası yok (BE 3, AIFS 0)  -> öncelik yokken payın büyük paketli sınıfa kayması
 
-Varsayım (sonuçlar buna duyarlıdır): doygun gönderici sıradaki pakete önceki atlamanın t_end anında (işlem süresi
-dahil) başlar; bkz. radio.saturated_sender. simulation.py'deki düğüm servis döngüsü aynı kuralı kullanmalıdır.
+Zamanlama kuralı (§5.5; sonuçlar buna duyarlıdır): doygun gönderici sıradaki pakete `RadioModel.next_packet_ready_s`
+anında başlar = önceki paketin son MAC etkinliği + config `radio.processing_delay_s` (başarı/kayıp ayrımı yok).
+Boşluksuz modelde yüksek AIFS'li sınıflar tamamen aç kalır. simulation.py'deki düğüm servis döngüsü aynı fonksiyonu
+kullanır; `radio.processing_delay_s` değişirse bu kalibrasyon yeniden koşturulmalıdır.
 
 Çıktı: results/tables/mac_aifs_calibration.csv (ızgara + referans satırları; seçilen çift `selected` sütununda).
 

@@ -152,17 +152,28 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
   (a) sınıf bazlı geri çekilme: macMinBE kritik 2, düzenli 3, kritik olmayan 5; macMaxBE 5;
   (b) sınıf bazlı AIFS: kanal boş algılandıktan sonra geri çekilme sayımına başlamadan önce sabit ek bekleme
   (`aifs_slots`, birim geri çekilme periyodu cinsinden; kritik 0, diğerleri kalibrasyonla belirlenir).
-  Yalnızca (a) ile doygun yükte ulaşılan pay 0,40 / 0,37 / 0,23 çıktı (hedef 0,80 / 0,15 / 0,05); bu yüzden (b) eklendi.
+  Yalnızca (a) ile doygun yükte ulaşılan pay 0,379 / 0,396 / 0,224 (kalibrasyon CSV'si; hedef 0,80 / 0,15 / 0,05);
+  bu yüzden (b) eklendi.
   Geri çekilme aralığını daraltmak tercih edilmedi: çarpışmalar modellenmediği için küçük BE'nin doğal bedeli yok,
   ayarı keyfi olur; AIFS ise güçlü sınıf ayrımı için standarttaki yerleşik mekanizma.
   **Kalibrasyon** (`experiments/calibration/mac_aifs.py`): doygun üç gönderici (sınıf başına bir, hepsi cs menzilinde,
-  20 s, 5 seed); düzenli AIFS ∈ {0, 1, 2, 4, 6}, kritik olmayan AIFS ∈ {2, 4, 7, 10, 14}; hedefe L1 uzaklığı en
-  küçük çift seçilir ve config'e yazılır; tablo `results/tables/mac_aifs_calibration.csv`. 80/15/5'in tam tutması
-  beklenmez; en yakın değer ve kalan sapma raporlanır.
+  20 s, 5 seed); düzenli AIFS ∈ {0, 1, 2, 3, 4, 5, 6}, kritik olmayan AIFS ∈ {2, 4, 5, 6, 7, 8, 10}; hedefe L1
+  uzaklığı en küçük çift seçilir ve config'e yazılır; tablo `results/tables/mac_aifs_calibration.csv`. Seçilen değer
+  için doğruluk kaynağı config'tir. 80/15/5'in tam tutması beklenmez; en yakın değer ve kalan sapma raporlanır.
+  (İlk ızgarada en iyi çift 4/7, L1 = 0,175; ızgara dışı 5/7 denemesi L1 = 0,058 verdiği için ızgara inceltildi.)
+  **Doygun gönderici zamanlama kuralı:** bir sonraki paket, önceki iletimin bitişinden işlem süresi (1 ms) sonra
+  hazır olur. Kalibrasyon bu kurala bağlıdır: boşluksuz modelde katı öncelik, yüksek AIFS'li sınıfları tamamen aç
+  bırakıyor (EDCA'nın bilinen açlık davranışı). `simulation.py`'deki düğüm servis döngüsü AYNI işlem süresi kuralını
+  kullanmalıdır; aksi halde kalibrasyon simülasyona taşınmaz.
+  **AIFS'nin bedeli:** AIFS boş kanalda da her çerçeveye eklenir (düzenli +1,28 ms, kritik olmayan +2,24 ms;
+  1024 B'lik 12 parçalı paket atlama başına ~+27 ms). `HopResult.aifs_s` ayrıca loglanır; raporda önceliğin gecikme
+  bedeli olarak gösterilir. Doygunlukta kritik olmayan paketlerin bir kısmı (π10 = 1 nedeniyle) kanal erişim
+  hatasıyla düşer; E1'in yüksek yük ayağında yorumlanırken dikkate alınacak.
   **Yorum:** π1 doygun yükte bir airtime öncelik hedefidir; doygun olmayan yükte her sınıf sunduğu yük kadar pay
   alır. Değerlendirmenin asıl ölçütü sınıf bazlı gecikme, PDR ve QoS memnuniyetidir; airtime payı ek metriktir.
   B1-plain: bütün sınıflar BE 3, AIFS 0, tek FIFO kuyruk. Gözlem: öncelik yokken airtime'ın en büyük payını büyük
-  paketli kritik olmayan sınıf alıyor (0,24 / 0,32 / 0,44) — politikanın gerekçesi olarak raporda kullanılacak.
+  paketli kritik olmayan sınıf alıyor (0,234 / 0,341 / 0,425; kalibrasyon CSV'si) — politikanın gerekçesi olarak
+  raporda kullanılacak.
 - Modellenmeyenler (sınırlılık): ACK çerçeveleri, CCA süresi, boşta dinleme enerjisi. Mutlak ömür değerleri
   bu yüzden iyimserdir; yöntemler arası karşılaştırma aynı varsayımla yapıldığı için adil kalır.
 - shared modda aktarıcı düğümde sınıf başına kuyruk, π2'ye göre katı öncelikli servis.

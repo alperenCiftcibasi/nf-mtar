@@ -280,6 +280,32 @@ def test_aifs_counts_from_idle_channel_and_restarts_when_interrupted():
     assert math.isclose(res.aifs_s, 0.015 + aifs) and math.isclose(res.backoff_s, res.aifs_s)
 
 
+def test_next_packet_ready_follows_single_processing_delay(cfg):
+    """§5.5 zamanlama kuralı: sıradaki paket = son MAC etkinliği + radio.processing_delay_s (config); başarı/kayıp aynı.
+
+    Doygun gönderici ardışık paketlere tam bu anda başlar; işlem süresi için ikinci bir sabit yoktur
+    (processing_delay_s değişince hem bileşen hem kural değişir).
+    """
+    for overrides in (PRR_ONE, PRR_ZERO):
+        for proc in (0.001, 0.004):
+            c = load_config(overrides={**overrides, "radio.processing_delay_s": proc})
+            radio, backoff = RadioModel.from_config(c), BackoffPolicy(c.radio.csma)
+            s, r = node(0, 0, 0, energy=math.inf), node(1, 10, 0, energy=math.inf)
+            log: list = []
+            run_mac_sessions(
+                {"sat": saturated_sender(radio, backoff, channel_for(s, r), np.random.default_rng(0), s, r, "regular", 1, lambda: 64, log)},
+                until_s=0.2,
+            )
+            assert len(log) >= 5 and all(p.success for p in log) == (overrides is PRR_ONE)
+            for prev, nxt in zip(log, log[1:]):
+                assert math.isclose(radio.next_packet_ready_s(prev), prev.mac_end_s + proc)
+                assert math.isclose(nxt.t_start, radio.next_packet_ready_s(prev))
+                if prev.success:  # başarıda t_end işlem süresini zaten içerir: kural t_end'i verir
+                    assert math.isclose(prev.processing_s, proc) and math.isclose(radio.next_packet_ready_s(prev), prev.t_end)
+                else:             # kayıpta t_end kaybın anıdır: kural işlem süresini ekler
+                    assert prev.processing_s == 0.0 and math.isclose(radio.next_packet_ready_s(prev), prev.t_end + proc)
+
+
 def _saturated_shares(aifs_slots: dict[str, int], seed: int, duration_s: float = 5.0) -> dict[str, float]:
     """Sınıf başına bir doygun gönderici, hepsi cs menzilinde; yalnızca AIFS farklı (aynı BE 3, 90 B paket, π10 = 3)."""
     c = load_config(overrides={
