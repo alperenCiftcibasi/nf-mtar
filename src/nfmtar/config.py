@@ -414,6 +414,16 @@ class RouterConfig:
     def __post_init__(self) -> None:
         if self.relay_mode not in ("strict", "shared"):
             raise ConfigError(f"router.relay_mode 'strict' veya 'shared' olmalı, {self.relay_mode!r} geldi")
+        if self.algorithm != "dijkstra_reverse":
+            raise ConfigError(f"router.algorithm 'dijkstra_reverse' olmalı (§5.9), {self.algorithm!r} geldi")
+        if not 0.0 < self.prr_min < 1.0:
+            raise ConfigError(f"router.prr_min (0, 1) aralığında olmalı (§5.9 L_max = −log PRR_min), {self.prr_min} geldi")
+        if self.lambda1 < 0 or self.lambda2 < 0 or self.lambda1 + self.lambda2 <= 0:
+            raise ConfigError("router.lambda1 ve lambda2 negatif olmayan, toplamı pozitif olmalı (§5.9)")
+        if self.b1.edge_cost != "hop":
+            raise ConfigError(f"router.b1.edge_cost 'hop' olmalı (§5.9 B1), {self.b1.edge_cost!r} geldi")
+        if self.b2.link_metric != "etx" or self.b2.lambda1 < 0:
+            raise ConfigError("router.b2: link_metric 'etx' ve lambda1 >= 0 olmalı (§5.9 B2)")
 
 
 @dataclass(frozen=True)

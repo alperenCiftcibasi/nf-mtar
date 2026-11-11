@@ -173,9 +173,9 @@ router:                                  # §5.9 yol seçimi
   normalize_lambdas: true                # §5.9 λ3 = π6 alınır; λ1, λ2 buradaki oranla (1 - λ3)'ü paylaşır -> toplam 1
   prr_min: 0.05                          # §5.9 L_max = -log(PRR_min)
   algorithm: dijkstra_reverse            # §5.9 edge router'dan ve root'tan ters yönlü tek kaynaklı Dijkstra
-  relay_mode: strict                     # §5.9 strict (varsayılan, makaleye sadık): yol yalnızca kendi topolojisinin alt çizgesinde;
-                                         #      shared: yol fiziksel ağda, diğer topolojilerin düğümleri yalnızca aktarıcı —
-                                         #      YALNIZCA ablasyon/katkı ve E0. router.py yazılırken uygulanacak; §5.1 regen ölçütünü etkiler
+  relay_mode: strict                     # §5.9 strict (varsayılan, makaleye sadık): yol yalnızca kendi topolojisinin canlı alt çizgesinde;
+                                         #      shared: yol fiziksel ağda, diğer topolojilerin sensörleri yalnızca aktarıcı (edge router'lar
+                                         #      hiçbir modda aktarıcı değil) — YALNIZCA ablasyon/katkı ve E0; §5.1 regen ölçütünü de etkiler
   b1:
     edge_cost: hop                       # §5.9 B1 kenar maliyeti = 1 (atlama sayısı)
   b2:
