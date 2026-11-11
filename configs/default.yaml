@@ -74,13 +74,20 @@ radio:                                   # §5.5 IEEE 802.15.4
   bitrate_bps: 250000                    # §5.5 250 kbit/s
   max_frame_bytes: 127                   # §5.5 çerçeve <= 127 B
   payload_per_frame_bytes: 90            # §5.5 çerçeve başına veri ~90 B; büyük paketler parçalanır
+  phy_header_bytes: 6                    # §5.5 SHR+PHR (preamble, SFD, uzunluk) 127 B PSDU'ya ek (varsayılan; CLAUDE.md'de sayı yok)
   fragment_loss_drops_packet: true       # §5.5 bir parça kaybolursa paket kaybolur
-  csma:
-    backoff_slot_s: 0.00032              # §5.5 320 us slot
-    max_backoff_slots: 7                 # §5.5 rastgele 0–7 slot, parça başına
+  csma:                                  # §5.5 sınıf bazlı CSMA/CA (802.11e EDCA benzeri): π1 hedefi, π2 sırası MAC'te
+    backoff_slot_s: 0.00032              # §5.5 320 us slot; geri çekilme = U{0..2^BE-1} slot, parça başına
+    mac_min_be: {critical: 2, regular: 3, noncritical: 5}   # §5.5 (a) macMinBE sınıf bazlı (π2 sırası: 7 > 4 > 1)
+    aifs_slots: {critical: 0, regular: 4, noncritical: 7}   # §5.5 (b) sınıf bazlı AIFS (slot): kanal boşaldıktan sonra geri çekilmeden önce sabit ek bekleme; kritik 0, diğerleri experiments/calibration/mac_aifs.py yazar; B1-plain'de hep 0
+    mac_max_be: 5                        # §5.5 macMaxBE
+    max_csma_backoffs: 4                 # 802.15.4 macMaxCSMABackoffs (varsayılan); aşılınca kanal erişim hatası = bir yeniden deneme (π10)
+    plain_be: 3                          # §5.5 B1-plain: bütün sınıflar BE 3 (0–7 slot), tek FIFO kuyruk
+  cs_range_m: 50.0                       # §5.5 taşıyıcı algılama menzili: bu menzilde iletim varken iletime başlanamaz
+  channel_model: local_contention        # §5.5 kanal ağ genelinde tek 250 kbit/s havuz DEĞİL; mekânsal yeniden kullanım var,
+                                         #      gizli terminal çarpışmaları modellenmez (kayıplar PRR ile; COOJA UDGM benzeri)
   processing_delay_s: 0.001              # §5.5 işlem süresi (varsayılan; CLAUDE.md'de sayı yok)
-  shared_channel: true                   # §5.5 üç topoloji aynı kanal kapasitesini paylaşır
-  delay_components: [queue, transmission, backoff, processing]  # §5.5, §5.13 paket logunda ayrı tutulur
+  delay_components: [queue, backoff, transmission, processing]  # §5.5, §5.13 paket logunda ayrı tutulur
   prr:                                   # §5.5 mesafeye bağlı lojistik PRR (menzile yaklaştıkça düşer)
     model: logistic                      # PRR(d) = prr_max / (1 + exp(k * (d - d_mid)))
     prr_max: 0.99                        # (varsayılan; CLAUDE.md'de sayı yok)
@@ -295,6 +302,17 @@ experiments:                             # §5.19
     summary_table: results/tables/e0_connectivity_summary.csv
     figure: results/figures/e0_topology_uniform_vs_region.png   # yan yana, aynı seed
     optional_after_router: strict_vs_shared_r_pdr_10_seeds      # §5.19 opsiyonel (router.py sonrası)
+  mac_aifs_calibration:                  # §5.5 AIFS kalibrasyonu (experiments/calibration/mac_aifs.py): doygun üç gönderici,
+                                         #      sınıf başına bir, hepsi taşıyıcı algılama menzilinde; hedef = π1 payları
+    duration_s: 20.0                     # §5.5 koşu süresi
+    n_seeds: 5                           # §5.5
+    grid:                                # §5.5 taranan AIFS değerleri (slot); kritik sınıf config'deki değerinde (0) kalır
+      regular: [0, 1, 2, 4, 6]
+      noncritical: [2, 4, 7, 10, 14]
+    link_distance_m: 10.0                # (varsayılan; CLAUDE.md'de sayı yok) gönderici -> alıcı mesafesi
+    pair_spacing_m: 10.0                 # (varsayılan; CLAUDE.md'de sayı yok) gönderici çiftleri arası mesafe (hepsi cs_range içinde)
+    objective: l1_to_pi1                 # §5.5 hedefe L1 uzaklığı en küçük çift seçilir ve radio.csma.aifs_slots'a yazılır
+    table: results/tables/mac_aifs_calibration.csv
   E1:                                    # ana tekrar deneyi (makale Şekil 4a, 5a, Tablo 4)
     n_nodes: 150
     area_m: [300.0, 300.0]

@@ -148,9 +148,23 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
   bir düğüm iletim yaparken iletime başlayamaz; CSMA/CA geri çekilmesiyle yeniden dener. Gizli terminal
   çarpışmaları modellenmez; kayıplar PRR ile temsil edilir (COOJA UDGM'ye benzer basitleştirme).
 - **Sınıf önceliği MAC'te (π1, π2):** strict modda bir düğüm yalnızca kendi sınıfını taşıdığından sınıflar ancak
-  paylaşılan ortamda karşılaşır. Öncelik 802.11e EDCA benzeri sınıf bazlı geri çekilmeyle uygulanır:
-  macMinBE kritik 2, düzenli 3, kritik olmayan 5; macMaxBE 5 (config). π1'in 80/15/5 hedefi bu yolla yaklaşık
-  sağlanır; sınıf bazında ulaşılan airtime payı ölçülüp raporlanır. B1-plain: bütün sınıflar BE 3, tek FIFO kuyruk.
+  paylaşılan ortamda karşılaşır. Öncelik 802.11e EDCA benzeri iki mekanizmayla uygulanır:
+  (a) sınıf bazlı geri çekilme: macMinBE kritik 2, düzenli 3, kritik olmayan 5; macMaxBE 5;
+  (b) sınıf bazlı AIFS: kanal boş algılandıktan sonra geri çekilme sayımına başlamadan önce sabit ek bekleme
+  (`aifs_slots`, birim geri çekilme periyodu cinsinden; kritik 0, diğerleri kalibrasyonla belirlenir).
+  Yalnızca (a) ile doygun yükte ulaşılan pay 0,40 / 0,37 / 0,23 çıktı (hedef 0,80 / 0,15 / 0,05); bu yüzden (b) eklendi.
+  Geri çekilme aralığını daraltmak tercih edilmedi: çarpışmalar modellenmediği için küçük BE'nin doğal bedeli yok,
+  ayarı keyfi olur; AIFS ise güçlü sınıf ayrımı için standarttaki yerleşik mekanizma.
+  **Kalibrasyon** (`experiments/calibration/mac_aifs.py`): doygun üç gönderici (sınıf başına bir, hepsi cs menzilinde,
+  20 s, 5 seed); düzenli AIFS ∈ {0, 1, 2, 4, 6}, kritik olmayan AIFS ∈ {2, 4, 7, 10, 14}; hedefe L1 uzaklığı en
+  küçük çift seçilir ve config'e yazılır; tablo `results/tables/mac_aifs_calibration.csv`. 80/15/5'in tam tutması
+  beklenmez; en yakın değer ve kalan sapma raporlanır.
+  **Yorum:** π1 doygun yükte bir airtime öncelik hedefidir; doygun olmayan yükte her sınıf sunduğu yük kadar pay
+  alır. Değerlendirmenin asıl ölçütü sınıf bazlı gecikme, PDR ve QoS memnuniyetidir; airtime payı ek metriktir.
+  B1-plain: bütün sınıflar BE 3, AIFS 0, tek FIFO kuyruk. Gözlem: öncelik yokken airtime'ın en büyük payını büyük
+  paketli kritik olmayan sınıf alıyor (0,24 / 0,32 / 0,44) — politikanın gerekçesi olarak raporda kullanılacak.
+- Modellenmeyenler (sınırlılık): ACK çerçeveleri, CCA süresi, boşta dinleme enerjisi. Mutlak ömür değerleri
+  bu yüzden iyimserdir; yöntemler arası karşılaştırma aynı varsayımla yapıldığı için adil kalır.
 - shared modda aktarıcı düğümde sınıf başına kuyruk, π2'ye göre katı öncelikli servis.
 - Link kalitesi: mesafeye bağlı PRR, menzile yaklaştıkça düşen lojistik fonksiyon (parametreler config).
 - Enerji: birinci dereceden radyo modeli (E_elec = 50 nJ/bit, ε_amp = 100 pJ/bit/m²);

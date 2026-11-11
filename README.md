@@ -113,6 +113,9 @@ python experiments/analysis/plot_topology.py --set placement.random.r_placement=
 # E0: connectivity analysis of the disjoint partition (uniform vs region placement, 30 seeds)
 python experiments/analysis/e0_connectivity.py                   # -> results/tables/e0_connectivity*.csv, results/figures/e0_topology_uniform_vs_region.png
 
+# MAC AIFS calibration: saturated three-sender sweep; writes the best AIFS pair to configs/default.yaml
+python experiments/calibration/mac_aifs.py                       # -> results/tables/mac_aifs_calibration.csv (--no-write: table only)
+
 pytest                                                           # unit tests (tests/)
 ```
 

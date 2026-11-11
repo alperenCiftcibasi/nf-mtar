@@ -175,10 +175,33 @@ class EdgeRouterConfig:
 
 @dataclass(frozen=True)
 class CsmaConfig:
-    """CSMA/CA geri çekilme parametreleri (§5.5)."""
+    """Sınıf bazlı CSMA/CA geri çekilme parametreleri (§5.5; π1/π2 MAC'te uygulanır, §5.7).
+
+    mac_min_be: trafik sınıfı -> macMinBE (kritik 2, düzenli 3, kritik olmayan 5); plain_be: B1-plain (3).
+    aifs_slots: trafik sınıfı -> AIFS, birim geri çekilme periyodu (slot) cinsinden (§5.5 (b)); kritik 0,
+    diğerleri experiments/calibration/mac_aifs.py ile kalibre edilir. 0 = AIFS yok (B1-plain'de hep 0).
+    """
 
     backoff_slot_s: float
-    max_backoff_slots: int
+    mac_min_be: dict[str, int]
+    aifs_slots: dict[str, int]
+    mac_max_be: int
+    max_csma_backoffs: int
+    plain_be: int
+
+    def __post_init__(self) -> None:
+        for cls, slots in self.aifs_slots.items():
+            if slots < 0:
+                raise ConfigError(f"radio.csma.aifs_slots[{cls}] = {slots}; negatif olamaz (§5.5)")
+        for cls, be in self.mac_min_be.items():
+            if not 0 <= be <= self.mac_max_be:
+                raise ConfigError(
+                    f"radio.csma.mac_min_be[{cls}] = {be}; 0..mac_max_be ({self.mac_max_be}) aralığında olmalı"
+                )
+        if not 0 <= self.plain_be <= self.mac_max_be:
+            raise ConfigError(f"radio.csma.plain_be = {self.plain_be}; 0..mac_max_be ({self.mac_max_be}) aralığında olmalı")
+        if self.backoff_slot_s <= 0 or self.max_csma_backoffs < 0:
+            raise ConfigError("radio.csma.backoff_slot_s pozitif, max_csma_backoffs negatif olmayan olmalı")
 
 
 @dataclass(frozen=True)
@@ -199,12 +222,22 @@ class RadioConfig:
     bitrate_bps: int
     max_frame_bytes: int
     payload_per_frame_bytes: int
+    phy_header_bytes: int
     fragment_loss_drops_packet: bool
     csma: CsmaConfig
+    cs_range_m: float
+    channel_model: str
     processing_delay_s: float
-    shared_channel: bool
     delay_components: tuple[str, ...]
     prr: PrrConfig
+
+    def __post_init__(self) -> None:
+        if not 0 < self.payload_per_frame_bytes < self.max_frame_bytes:
+            raise ConfigError("radio.payload_per_frame_bytes 0 ile max_frame_bytes arasında olmalı (§5.5)")
+        if self.channel_model != "local_contention":
+            raise ConfigError(f"radio.channel_model 'local_contention' olmalı (§5.5), {self.channel_model!r} geldi")
+        if self.cs_range_m <= 0 or self.bitrate_bps <= 0:
+            raise ConfigError("radio.cs_range_m ve bitrate_bps pozitif olmalı")
 
 
 @dataclass(frozen=True)
@@ -348,6 +381,16 @@ class Config:
     experiments: dict[str, Any]
     contribution: dict[str, Any]
     source_path: str | None = field(default=None, metadata={"internal": True})
+
+    def __post_init__(self) -> None:
+        """Bölümler arası tutarlılık: MAC sınıf tablosu (§5.5) trafik sınıflarıyla (§5.6) aynı olmalı."""
+        classes = set(self.traffic.classes)
+        for name in ("mac_min_be", "aifs_slots"):
+            table = getattr(self.radio.csma, name)
+            if set(table) != classes:
+                raise ConfigError(
+                    f"radio.csma.{name} anahtarları {sorted(classes)} olmalı, {sorted(table)} geldi (§5.5)"
+                )
 
 
 # --------------------------------------------------------------------------- #
