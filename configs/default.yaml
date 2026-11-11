@@ -103,22 +103,31 @@ energy:                                  # §5.5 birinci dereceden radyo modeli
   initial_J: 2.0                         # §5.5 başlangıç enerjisi (E8'de 0.5 J ile geçersiz kılınır)
   dead_threshold_J: 0.0                  # §5.5 enerjisi biten düğüm ölür
 
-traffic:                                 # §5.6
-  load_multiplier: 1.0                   # §5.6 yük ölçeği (E1: 0.5 / 1.0 / 2.0)
-  arrival_process: poisson               # (varsayılan; CLAUDE.md belirtmiyor) paket varış süreci
+traffic:                                 # §5.6 trafik modeli (traffic.py): yöntemden bağımsız, seed'den önceden üretilen iz (trace)
+  load_multiplier: 1.0                   # §5.6 YALNIZCA temel hızları (rate_pps) ölçekler, epizot hızını değil (E1: 0.5 / 1.0 / 2.0);
+                                         #      varsayılan hızlar M6'daki kısa koşularla kalibre edilecek
   classes:
-    critical:                            # §5.6 kritik -> E
+    critical:                            # §5.6 kritik -> E: olay güdümlü alarmlar
       topology: E
-      packet_bytes: 64                   # §5.6 küçük paket
-      rate_pps: 2.0                      # §5.6 "yüksek hız" (varsayılan; kanalı doyurmayacak şekilde kalibre edilecek)
-    regular:                             # §5.6 düzenli -> L
+      packet_bytes: 64                   # §5.6 sabit 64 B
+      rate_pps: 1.0                      # §5.6 temel hız 1 paket/s (+ kritik bakım epizotları)
+      arrival: {process: poisson}        # §5.6 Poisson
+    regular:                             # §5.6 düzenli -> L: periyodik yaşamsal bulgu örneklemesi
       topology: L
       packet_bytes: [128, 256]           # §5.6 aralıkta düzgün
-      rate_pps: 1.0                      # §5.6 ~1 paket/s
-    noncritical:                         # §5.6 kritik olmayan -> R
+      rate_pps: 1.0                      # §5.6 1 paket/s (makale: rutin kayıtlar 1 paket/s)
+      arrival: {process: periodic, jitter_frac: 0.10, random_phase: true}   # §5.6 periyot × (1 ± %10 düzgün), rastgele faz
+    noncritical:                         # §5.6 kritik olmayan -> R: arka plan senkronizasyonu, yedekleme
       topology: R
       packet_bytes: [512, 1024]          # §5.6 aralıkta düzgün
-      rate_pps: 0.1                      # §5.6 "düşük hız" (varsayılan; kalibre edilecek)
+      rate_pps: 0.2                      # §5.6 0,2 paket/s
+      arrival: {process: poisson}        # §5.6 Poisson
+  critical_episodes:                     # §5.6 kritik bakım epizotları (makale: kritik bakımda 10 paket/s'ye kadar); §5.18 tetikleyici 2'yi sınar
+    enabled: true
+    traffic_class: critical              # epizotların uygulandığı sınıf (kod sınıf adını gömmesin diye burada)
+    mean_interval_s: 300                 # §5.6 düğüm başına epizot başlangıçları Poisson, ortalama 5 dakikada bir
+    duration_s: 30                       # §5.6 epizot süresi (örtüşen epizotlar birleşir)
+    rate_pps: 10                         # §5.6 epizot boyunca hız (load_multiplier'dan etkilenmez)
 
 policy:                                  # §5.7 Tablo 1 (π7 güvenlik, π8 yedeklilik KAPSAM DIŞI; Denk. 4 KODLANMAZ)
   E:

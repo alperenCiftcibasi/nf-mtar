@@ -162,6 +162,7 @@ TODO: tables and figures (`results/tables/`, `results/figures/`) with mean ± 95
 - Control-message overhead of the V-SDN controller is assumed to be zero.
 - The security level (π7) and redundancy (π8) policies of the paper are out of scope.
 - Each node generates a single traffic class; partitions are disjoint and deterministic.
+- Traffic is a pre-generated, method-independent trace (common random numbers): critical 64 B Poisson at 1 packet/s plus Poisson-started 30 s "critical-care episodes" at 10 packets/s (mean one per 5 min per node); regular 128–256 B periodic at 1 packet/s with ±10 % jitter and random phase; non-critical 512–1024 B Poisson at 0.2 packets/s. `load_multiplier` scales only the base rates. Each node draws from its own `SeedSequence.spawn` stream, so changing one class's parameters leaves the other classes' traces unchanged.
 - The radio is a simplified IEEE 802.15.4 model (distance-based PRR, first-order radio energy model, a shared channel without an explicit interference model).
 - Several paper parameters are undefined or inconsistent; the choices made are documented in `CLAUDE.md` and in the report.
 - TODO: extend after the experiments.

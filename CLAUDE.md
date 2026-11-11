@@ -152,7 +152,7 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
   (a) sınıf bazlı geri çekilme: macMinBE kritik 2, düzenli 3, kritik olmayan 5; macMaxBE 5;
   (b) sınıf bazlı AIFS: kanal boş algılandıktan sonra geri çekilme sayımına başlamadan önce sabit ek bekleme
   (`aifs_slots`, birim geri çekilme periyodu cinsinden; kritik 0, diğerleri kalibrasyonla belirlenir).
-  Yalnızca (a) ile doygun yükte ulaşılan pay 0,379 / 0,396 / 0,224 (kalibrasyon CSV'si; hedef 0,80 / 0,15 / 0,05);
+  Yalnızca (a) ile doygun yükte ulaşılan pay 0,382 / 0,392 / 0,226 (kalibrasyon CSV'si; hedef 0,80 / 0,15 / 0,05);
   bu yüzden (b) eklendi.
   Geri çekilme aralığını daraltmak tercih edilmedi: çarpışmalar modellenmediği için küçük BE'nin doğal bedeli yok,
   ayarı keyfi olur; AIFS ise güçlü sınıf ayrımı için standarttaki yerleşik mekanizma.
@@ -161,8 +161,12 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
   uzaklığı en küçük çift seçilir ve config'e yazılır; tablo `results/tables/mac_aifs_calibration.csv`. Seçilen değer
   için doğruluk kaynağı config'tir. 80/15/5'in tam tutması beklenmez; en yakın değer ve kalan sapma raporlanır.
   (İlk ızgarada en iyi çift 4/7, L1 = 0,175; ızgara dışı 5/7 denemesi L1 = 0,058 verdiği için ızgara inceltildi.)
-  **Doygun gönderici zamanlama kuralı:** bir sonraki paket, önceki iletimin bitişinden işlem süresi (1 ms) sonra
-  hazır olur. Kalibrasyon bu kurala bağlıdır: boşluksuz modelde katı öncelik, yüksek AIFS'li sınıfları tamamen aç
+  **Seçilen:** düzenli 5, kritik olmayan 7 (paylar 0,814 / 0,165 / 0,021; L1 = 0,058). Seçim önceden tanımlı L1
+  ölçütüyle yapıldı. 5/8 (L1 = 0,069; doygunlukta kritik olmayan düşmesi 0,14'e karşı 0,23) neredeyse eşdeğer;
+  duyarlılık olarak raporlanacak. Üç hedefi aynı anda tutan nokta yok; düzenli payı AIFS 5→6'da 0,16'dan 0,08'e
+  düşüyor (ayar ayrık ve hassas). L1 ısı haritası raporda şekil olarak kullanılacak.
+  **Doygun gönderici zamanlama kuralı:** bir sonraki paket, önceki iletimin (başarılı ya da kayıp) MAC bitişinden
+  işlem süresi (`radio.processing_delay_s`, 1 ms) sonra hazır olur; tek kaynak `RadioModel.next_packet_ready_s`. Kalibrasyon bu kurala bağlıdır: boşluksuz modelde katı öncelik, yüksek AIFS'li sınıfları tamamen aç
   bırakıyor (EDCA'nın bilinen açlık davranışı). `simulation.py`'deki düğüm servis döngüsü AYNI işlem süresi kuralını
   kullanmalıdır; aksi halde kalibrasyon simülasyona taşınmaz.
   **AIFS'nin bedeli:** AIFS boş kanalda da her çerçeveye eklenir (düzenli +1,28 ms, kritik olmayan +2,24 ms;
@@ -172,7 +176,7 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
   **Yorum:** π1 doygun yükte bir airtime öncelik hedefidir; doygun olmayan yükte her sınıf sunduğu yük kadar pay
   alır. Değerlendirmenin asıl ölçütü sınıf bazlı gecikme, PDR ve QoS memnuniyetidir; airtime payı ek metriktir.
   B1-plain: bütün sınıflar BE 3, AIFS 0, tek FIFO kuyruk. Gözlem: öncelik yokken airtime'ın en büyük payını büyük
-  paketli kritik olmayan sınıf alıyor (0,234 / 0,341 / 0,425; kalibrasyon CSV'si) — politikanın gerekçesi olarak
+  paketli kritik olmayan sınıf alıyor (0,234 / 0,340 / 0,426; kalibrasyon CSV'si) — politikanın gerekçesi olarak
   raporda kullanılacak.
 - Modellenmeyenler (sınırlılık): ACK çerçeveleri, CCA süresi, boşta dinleme enerjisi. Mutlak ömür değerleri
   bu yüzden iyimserdir; yöntemler arası karşılaştırma aynı varsayımla yapıldığı için adil kalır.
@@ -181,9 +185,25 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 - Enerji: birinci dereceden radyo modeli (E_elec = 50 nJ/bit, ε_amp = 100 pJ/bit/m²);
   başlangıç enerjisi config (varsayılan 2 J). Enerjisi biten düğüm ölür.
 
-### 5.6 Trafik
-- Kritik: küçük paket (64 B), yüksek hız; düzenli: 128–256 B, ~1 paket/s; kritik olmayan: 512–1024 B, düşük hız.
-- Varsayılanlar kanalı doyuma sokmayacak şekilde kalibre edilir; `load_multiplier` ile ölçeklenir.
+### 5.6 Trafik — `traffic.py`
+
+| Sınıf | Paket boyutu | Varış süreci (load_multiplier = 1) | Gerekçe |
+|---|---|---|---|
+| Kritik (E) | 64 B | Poisson, 1 paket/s + kritik bakım epizotları | Olay güdümlü alarmlar; makale: kritik bakımda 10 paket/s'ye kadar |
+| Düzenli (L) | düzgün 128–256 B | Periyodik 1 paket/s, rastgele faz, ±%10 düzgün titreşim | Periyodik yaşamsal bulgu örneklemesi; makale: rutin kayıtlar 1 paket/s |
+| Kritik olmayan (R) | düzgün 512–1024 B | Poisson, 0,2 paket/s | Arka plan senkronizasyonu, yedekleme |
+
+- **Kritik bakım epizotları:** her kritik düğüm için epizot başlangıçları Poisson (ortalama 5 dakikada bir), süre
+  30 s; epizot boyunca hız 10 paket/s (makaledeki üst sınır). Amaç: (1) makalenin kritik bakım senaryosunu temsil
+  etmek, (2) trafik değişimi tetikleyicisini (§5.18, tetikleyici 2) gerçekten sınamak — durağan trafikte o tetikleyici
+  hiç çalışmaz. Config: `critical_episodes: {enabled: true, mean_interval_s: 300, duration_s: 30, rate_pps: 10}`.
+- `load_multiplier` yalnızca temel hızları ölçekler (epizot hızını değil). Varsayılanlar M6'daki kısa koşularla
+  kalibre edilecek: hedef, orta yükte (1,0) baseline'ların ne çöktüğü ne de hep %100 PDR verdiği bir çalışma noktası.
+- **Ortak rastgele sayılar (common random numbers):** trafik, yöntemden BAĞIMSIZ olarak seed'den önceden bir varış
+  izi (trace) olarak üretilir ve bütün yöntemlere aynen verilir; her düğüm kendi RNG akışını kullanır
+  (`numpy.random.SeedSequence(seed).spawn`). Böylece aynı seed'de bütün yöntemler birebir aynı paketleri görür;
+  eşleştirilmiş istatistiğin (§5.19) gücünü artırır ve bir sınıfın parametresini değiştirmek diğerlerinin izini kaydırmaz.
+- Paket kaydı: id, kaynak, sınıf, boyut, oluşturulma zamanı, son tarih (oluşturulma + π3; QoS memnuniyeti için).
 
 ### 5.7 Tablo 1 politika parametreleri
 

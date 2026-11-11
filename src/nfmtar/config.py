@@ -251,21 +251,75 @@ class EnergyConfig:
 
 
 @dataclass(frozen=True)
+class ArrivalConfig:
+    """Bir sınıfın varış süreci (§5.6): poisson (üstel aralıklar) veya periodic (sabit periyot + titreşim).
+
+    periodic: aralık = periyot × (1 + jitter_frac × U(−1, 1)); random_phase ile ilk varış U(0, periyot).
+    poisson: jitter_frac ve random_phase anlamsızdır (0 / false olmalı).
+    """
+
+    process: str
+    jitter_frac: float = 0.0
+    random_phase: bool = False
+
+    def __post_init__(self) -> None:
+        if self.process not in ("poisson", "periodic"):
+            raise ConfigError(f"arrival.process 'poisson' veya 'periodic' olmalı, {self.process!r} geldi (§5.6)")
+        if not 0.0 <= self.jitter_frac < 1.0:
+            raise ConfigError(f"arrival.jitter_frac [0, 1) aralığında olmalı, {self.jitter_frac} geldi (§5.6)")
+        if self.process == "poisson" and (self.jitter_frac != 0.0 or self.random_phase):
+            raise ConfigError("arrival: poisson süreçte jitter_frac 0 ve random_phase false olmalı (§5.6)")
+
+
+@dataclass(frozen=True)
 class TrafficClassConfig:
-    """Bir trafik sınıfının topolojisi, paket boyutu (sabit veya aralık) ve hızı (§5.6)."""
+    """Bir trafik sınıfının topolojisi, paket boyutu (sabit veya [alt, üst] düzgün), temel hızı ve varış süreci (§5.6)."""
 
     topology: str
     packet_bytes: int | tuple[int, int]
     rate_pps: float
+    arrival: ArrivalConfig
+
+    def __post_init__(self) -> None:
+        pb = self.packet_bytes
+        if isinstance(pb, int):
+            ok = pb > 0
+        else:
+            ok = 0 < pb[0] <= pb[1]
+        if not ok:
+            raise ConfigError(f"packet_bytes pozitif bir sayı veya [alt, üst] (0 < alt <= üst) olmalı, {pb!r} geldi (§5.6)")
+        if self.rate_pps <= 0:
+            raise ConfigError(f"rate_pps pozitif olmalı, {self.rate_pps} geldi (§5.6)")
+
+
+@dataclass(frozen=True)
+class EpisodeConfig:
+    """Kritik bakım epizotları (§5.6): düğüm başına Poisson başlangıçlar, sabit süre, epizot boyunca sabit hız.
+
+    traffic_class: epizotların uygulandığı sınıf (kod sınıf adını gömmesin diye config'de).
+    """
+
+    enabled: bool
+    traffic_class: str
+    mean_interval_s: float
+    duration_s: float
+    rate_pps: float
+
+    def __post_init__(self) -> None:
+        if self.mean_interval_s <= 0 or self.duration_s <= 0 or self.rate_pps <= 0:
+            raise ConfigError("traffic.critical_episodes: mean_interval_s, duration_s ve rate_pps pozitif olmalı (§5.6)")
 
 
 @dataclass(frozen=True)
 class TrafficConfig:
-    """Trafik sınıfları ve yük ölçeği (§5.6); sınıf -> topoloji eşlemesi one-hot (§5.3)."""
+    """Trafik sınıfları, yük ölçeği ve kritik bakım epizotları (§5.6); sınıf -> topoloji eşlemesi one-hot (§5.3).
+
+    load_multiplier yalnızca sınıfların temel hızlarını (rate_pps) ölçekler; epizot hızını değiştirmez (§5.6).
+    """
 
     load_multiplier: float
-    arrival_process: str
     classes: dict[str, TrafficClassConfig]
+    critical_episodes: EpisodeConfig
 
     def __post_init__(self) -> None:
         topologies = [c.topology for c in self.classes.values()]
@@ -273,6 +327,13 @@ class TrafficConfig:
             raise ConfigError(
                 "traffic.classes her topolojiye tam bir sınıf atamalı (§5.3 one-hot); "
                 f"{topologies} geldi"
+            )
+        if self.load_multiplier <= 0:
+            raise ConfigError(f"traffic.load_multiplier pozitif olmalı, {self.load_multiplier} geldi (§5.6)")
+        if self.critical_episodes.traffic_class not in self.classes:
+            raise ConfigError(
+                f"traffic.critical_episodes.traffic_class {self.critical_episodes.traffic_class!r} "
+                f"traffic.classes içinde yok ({sorted(self.classes)}) (§5.6)"
             )
 
     def class_for_topology(self, topology: str) -> str:

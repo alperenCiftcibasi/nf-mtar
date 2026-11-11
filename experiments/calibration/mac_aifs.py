@@ -52,6 +52,7 @@ from nfmtar.network.radio import (  # noqa: E402
     run_mac_sessions,
     saturated_sender,
 )
+from nfmtar.traffic import draw_packet_bytes  # noqa: E402
 
 AIFS_LINE = re.compile(r"^([ \t]*aifs_slots:[ \t]*)\{[^}\r\n]*\}", re.MULTILINE)
 
@@ -90,20 +91,15 @@ def run_saturated(cfg: Config, seed: int, duration_s: float, vsdn_policy: bool =
         if not others <= channel.cs_neighbors[s.node_id]:
             raise ValueError("kalibrasyon yerleşimi: göndericiler birbirinin cs menzilinde değil (pair_spacing_m)")
 
-    def size_drawer(packet_bytes: int | tuple[int, int]):
-        """§5.6 paket boyutu: sabit veya [alt, üst] aralığında düzgün."""
-        if isinstance(packet_bytes, int):
-            return lambda: packet_bytes
-        lo, hi = packet_bytes
-        return lambda: int(rng.integers(lo, hi + 1))
-
     logs: dict[str, list[HopResult]] = {name: [] for name in classes}
     sessions = {}
     for name in classes:
         tc = cfg.traffic.classes[name]
         sessions[name] = saturated_sender(
             radio, backoff, channel, rng, senders[name], receivers[name], name,
-            cfg.policy.for_topology(tc.topology).retransmit_limit, size_drawer(tc.packet_bytes), logs[name],
+            cfg.policy.for_topology(tc.topology).retransmit_limit,
+            lambda pb=tc.packet_bytes: draw_packet_bytes(rng, pb),  # §5.6 boyut dağılımı (traffic.py ile aynı)
+            logs[name],
         )
     run_mac_sessions(sessions, until_s=duration_s)
 
