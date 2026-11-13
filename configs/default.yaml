@@ -166,8 +166,9 @@ policy:                                  # §5.7 Tablo 1 (π7 güvenlik, π8 yed
   qos_satisfaction_thresholds: [max_delay_ms, min_throughput_pct, loss_tolerance_pct]  # §5.7 Denk. 4 yerine ölçülen memnuniyet oranı (π3/π4/π5)
 
 router:                                  # §5.9 yol seçimi
-  # cost(u,v) = λ1·d²/R² + λ2·(-log PRR)/L_max + λ3·depletion(u); tüm terimler [0,1]
-  lambda1: 0.5                           # §5.9 d² terimi (varsayılan λ1 = λ2)
+  # cost(u,v) = λ1·E_hop(d)/E_hop(R) + λ2·(-log PRR)/L_max + λ3·depletion(u); tüm terimler [0,1]
+  # E_hop(d) = 2·E_elec + ε_amp·d² (energy: bölümünden, RadioModel.hop_energy_J_per_bit; router'da sabit kopyası yok)
+  lambda1: 0.5                           # §5.9 enerji terimi (varsayılan λ1 = λ2)
   lambda2: 0.5                           # §5.9 -log PRR terimi
   lambda3_from_policy: true              # §5.9 λ3 = π6 (E 0.3, L 0.5, R 0.8)
   normalize_lambdas: true                # §5.9 λ3 = π6 alınır; λ1, λ2 buradaki oranla (1 - λ3)'ü paylaşır -> toplam 1
@@ -179,8 +180,8 @@ router:                                  # §5.9 yol seçimi
   b1:
     edge_cost: hop                       # §5.9 B1 kenar maliyeti = 1 (atlama sayısı)
   b2:
-    link_metric: etx                     # §5.9 B2: -log PRR yerine ETX = 1/PRR (normalize), MRHOF benzeri
-    lambda1: 0.0                         # §5.9 B2'de d² terimi yok
+    link_metric: etx                     # §5.9 B2: cost = ETX(u,v) + π6·depletion(u); ETX = 1/max(PRR, prr_min), NORMALİZE EDİLMEZ
+                                         #      (MRHOF/RFC 6719: her atlama en az 1 maliyet); enerji terimi yok
 
 controller:                              # §5.8 V-SDN, §5.18 yeniden değerlendirme
   centralized: true                      # §5.8 global ağ görünümü

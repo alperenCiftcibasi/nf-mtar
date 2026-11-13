@@ -1,0 +1,4 @@
+mode,method,topology,n_members,root,root_H,root_C,hops_mean,hops_median,hops_max,hop_len_mean_m,e2e_prr_mean,bypass_frac,n_no_route,foreign_relays,subgraph_mean_degree,reach_ms,plan_ms
+strict,NF-MTAR,E,45,1,1,0.3431,3.0889,3.0000,5,30.6864,0.7570,0.0000,0,0,28.3111,5.4866,4.4287
+strict,NF-MTAR,L,60,99,1,0.2968,3.2000,3.0000,6,31.5146,0.7930,0.0000,0,0,19.4833,4.0668,4.3464
+strict,NF-MTAR,R,45,133,1,0.0921,4.9111,5.0000,7,32.1532,0.2854,0.0000,0,0,6.5556,1.3479,1.6500

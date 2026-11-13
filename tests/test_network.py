@@ -62,7 +62,7 @@ def test_config_new_decisions_defaults(cfg):
     """§5.1 enforce_partition_connectivity, §5.2 r_placement/r_target_degree, §5.9 relay_mode varsayılanları."""
     assert cfg.network.enforce_partition_connectivity is True
     assert cfg.placement.random.r_placement == "region" and cfg.placement.random.r_target_degree == 10
-    assert cfg.router.relay_mode == "strict" and cfg.router.b2.lambda1 == 0.0
+    assert cfg.router.relay_mode == "strict" and cfg.router.b2.link_metric == "etx"
     assert cfg.experiments["E0"]["placements"] == ["uniform", "region"]
 
 

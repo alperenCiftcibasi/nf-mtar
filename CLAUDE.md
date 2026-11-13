@@ -4,7 +4,7 @@ Bu dosya, projenin bağlamını ve alınmış bütün tasarım kararlarını iç
 Kod yazarken bu kararlara uy; bir karardan sapman gerekirse önce sor.
 "BEKLEMEDE" işaretli bölümler henüz netleşmedi; o kısımları uydurma, sor.
 
-Son güncelleme: 8 Kasım 2026
+Son güncelleme: 12 Kasım 2026
 
 ---
 
@@ -136,6 +136,8 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 - Her topolojinin **sabit** bir edge router'ı var (Edge-E, Edge-L, Edge-R), alan kenarına yakın.
 - **Root** = edge router'dan ayrı, topoloji içinden seçilen koordinatör (küme başı benzeri).
   Veri yolu iki aşamalı: sensör -> root -> edge router. Root veri birleştirme YAPMAZ (makalede yok).
+- **Bypass:** root'a topoloji içinden ulaşamayan ama edge router'a yolu olan sensör root'u atlayıp doğrudan edge
+  router'a gider (`RoutePlan.bypass`). Bütün yöntemlerde aynı kural; bypass edilen paket oranı metrik olarak loglanır.
 
 ### 5.5 Radyo, gecikme, enerji
 - IEEE 802.15.4: 250 kbit/s, çerçeve ≤ 127 B, çerçeve başına veri ~90 B (config). Büyük paketler
@@ -232,14 +234,30 @@ Yerine ölçülen **QoS memnuniyet oranı**: her sınıf için π3/π4/π5 eşik
 
 ### 5.9 Yol seçimi — `router.py`
 Kenar maliyeti (u -> v), tüm terimler [0,1]'e normalize:
-  cost(u,v) = λ1 · d(u,v)²/R²  +  λ2 · (−log PRR(u,v)) / L_max  +  λ3 · depletion(u)
-- d²: birinci dereceden radyo modelinde iletim enerjisi vekili (R = 50 m)
+  cost(u,v) = λ1 · E_hop(d)/E_hop(R)  +  λ2 · (−log PRR(u,v)) / L_max  +  λ3 · depletion(u)
+- E_hop(d) = 2·E_elec + ε_amp·d²: §5.5'teki birinci dereceden radyo modelinde bir atlamanın bit başına enerjisi
+  (gönderim + alım). Varsayılan sabitlerle E_hop(0)/E_hop(R) ≈ 0,29, yani her atlamanın sabit bir enerji bedeli var.
+  İlk sürümdeki d²/R² vekili bu sabiti içermediği için çok sayıda kısa atlamayı ödüllendiriyordu (seed 1'de NF-MTAR
+  ort. 7,6–10 atlama, B1 2,6–2,9). Oysa aynı enerji modelinde tek 40 m atlama (≈260 nJ/bit) iki 20 m atlamadan
+  (≈280 nJ/bit) ucuzdur. Düzeltme kendi enerji modelimizden türetildi; ad hoc atlama cezası değil.
+  (Makalenin Denk. 20'sindeki doğrusal mesafe terimi de atlama başına sabit içermez; raporda not edilecek.)
 - −log PRR: toplamı = −log(Π PRR) -> minimizasyon = en yüksek uçtan uca teslim olasılığı
   (L_max = −log(PRR_min), PRR_min config, ör. 0.05)
 - depletion(u) = 1 − kalan/başlangıç enerji
-- λ3 = π6 (E: 0.3, L: 0.5, R: 0.8); λ1, λ2 config (varsayılan eşit; λ'lar toplamı 1'e normalize)
-- B2: −log PRR yerine ETX = 1/PRR (normalize), λ1 = 0 (MRHOF benzeri)
+- λ3 = π6 (E: 0.3, L: 0.5, R: 0.8); λ1 = λ2 = (1 − λ3)/2 (toplam 1; config'ten değiştirilebilir)
+- Beklenen davranış (hata değil, raporlanacak ödünleşim): bu enerji modelinde mesafe başına enerji
+  E_hop(d)/d, d* = √(2·E_elec/ε_amp) ≈ 31,6 m'de en küçüktür. Enerji terimi bu yüzden ~30 m'lik atlamaları
+  tercih eder; B1 ise R'ye yakın (~40–50 m) atlamalar kullanır. NF-MTAR/B3 yollarının B1'den ~1,3–1,6 kat
+  daha fazla atlama içermesi beklenir; daha fazlası yoğunluk veya PRR teriminden gelmelidir, incelenir.
+  Ek atlama başına gecikme terimi (yalnızca E için) M5'teki gecikme ölçümlerinden sonra, veriyle karar verilir.
+- B2: cost(u,v) = ETX(u,v) + π6 · depletion(u), ETX = 1/PRR (PRR_min'e kırpılmış), ETX NORMALİZE EDİLMEZ.
+  MRHOF (RFC 6719) yol maliyetini ETX toplamı olarak alır ve her atlama en az 1 maliyet taşır; ilk sürümdeki
+  (ETX−1)/(ETX_max−1) normalizasyonu bu atlama başı bedeli siliyordu (iyi bağlantılarda ~0,0005/atlama; B2 4–6 atlama).
 - B1: kenar maliyeti = 1 (atlama sayısı)
+- Testler: (a) enerji terimi tek başına (λ2 = λ3 = 0) aynı doğrultuda tek 40 m atlamayı iki 20 m atlamaya,
+  tek 50 m atlamayı üç 16,7 m atlamaya tercih eder; (b) B2'de her kenarın maliyeti ≥ 1; (c) H, en ucuz yolun
+  atlama sayısından farklı olabildiği bir küçük çizgede BFS değerini verir; (d) bypass yalnızca root'a yol
+  yokken ve edge router'a yol varken devreye girer.
 - Dijkstra, topoloji alt çizgesinde, TERS yönde tek kaynaklı:
   edge router'dan -> tüm adayların H ve C değerleri; root'tan -> tüm sensörlerin yolları.
 - `relay_mode: {strict, shared}`, varsayılan strict (makaleye sadık: yol yalnızca kendi topolojisinin alt
@@ -368,7 +386,9 @@ kâhin skoru artmamalı.
 ### 5.17 Rank ve root seçimi — `engine/rank.py`
 R(v) = w1·(1 − f_norm(v)) + w2·H(v)/H_max + w3·C(v)/C_max ; r* = argmin R
 - (1 − f): makaledeki işaret hatası düzeltmesi
-- H: v'den edge router'a atlama; C: v'den edge router'a yolun §5.9 maliyeti
+- H: v'den edge router'a EN AZ atlama sayısı (topoloji alt çizgesinde BFS). En ucuz yolun atlama sayısı DEĞİL:
+  H topolojik yakınlığı, C maliyeti taşır; ikisi aynı yoldan türetilirse w2 ve w3 terimleri aynı bilgiyi iki kez sayar.
+- C: v'den edge router'a en ucuz yolun §5.9 maliyeti (ters yönlü Dijkstra'dan)
 - H_max, C_max: o turdaki adaylar arasında en büyük
 - Topolojiye özgü sabit ağırlıklar (config): E (0.4, 0.4, 0.2); L (0.5, 0.3, 0.2); R (0.6, 0.2, 0.2)
 - Adaylar: topolojideki canlı ve edge router'a yolu olan düğümler

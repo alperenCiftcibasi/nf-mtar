@@ -386,10 +386,9 @@ class B1RouterConfig:
 
 @dataclass(frozen=True)
 class B2RouterConfig:
-    """B2 yol maliyeti: ETX + depletion, d² terimi yok (§5.9)."""
+    """B2 yol maliyeti: ETX(u,v) + π6·depletion(u); ETX = 1/max(PRR, PRR_min), NORMALİZE EDİLMEZ (§5.9, MRHOF benzeri)."""
 
     link_metric: str
-    lambda1: float
 
 
 @dataclass(frozen=True)
@@ -422,8 +421,8 @@ class RouterConfig:
             raise ConfigError("router.lambda1 ve lambda2 negatif olmayan, toplamı pozitif olmalı (§5.9)")
         if self.b1.edge_cost != "hop":
             raise ConfigError(f"router.b1.edge_cost 'hop' olmalı (§5.9 B1), {self.b1.edge_cost!r} geldi")
-        if self.b2.link_metric != "etx" or self.b2.lambda1 < 0:
-            raise ConfigError("router.b2: link_metric 'etx' ve lambda1 >= 0 olmalı (§5.9 B2)")
+        if self.b2.link_metric != "etx":
+            raise ConfigError(f"router.b2.link_metric 'etx' olmalı (§5.9 B2), {self.b2.link_metric!r} geldi")
 
 
 @dataclass(frozen=True)

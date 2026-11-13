@@ -132,6 +132,14 @@ class RadioModel:
         """Birinci dereceden radyo modeli, alım: E_elec·k (§5.5)."""
         return self.e_elec_J_per_bit * bits
 
+    def hop_energy_J_per_bit(self, distance_m: float) -> float:
+        """Bir atlamanın bit başına enerjisi E_hop(d) = E_tx(1, d) + E_rx(1) = 2·E_elec + ε_amp·d² (§5.5; §5.9 enerji terimi).
+
+        Tek kaynak: router.py bu fonksiyonu kullanır, sabitleri kopyalamaz. E_hop(d)/d en küçük değerini
+        d* = sqrt(2·E_elec/ε_amp) ≈ 31,6 m'de alır (varsayılan sabitlerle).
+        """
+        return self.tx_energy_J(1, distance_m) + self.rx_energy_J(1)
+
     def next_packet_ready_s(self, result: "HopResult") -> float:
         """§5.5 zamanlama kuralı: düğüm sıradaki pakete, önceki paketin son MAC etkinliğinden processing_delay_s sonra başlar.
 
