@@ -89,18 +89,21 @@ def to_long(runs: pd.DataFrame, class_metrics: Sequence[str] = CLASS_METRICS,
     """runs.csv -> (hücre anahtarları, method, seed, class, metric, value); bulunmayan sütunlar atlanır."""
     runs = normalize_runs(runs)
     ids = [*CELL_KEYS, "method", "seed"]
-    parts = []
+    colmap: dict[str, tuple[str, str]] = {}   # runs sütunu -> (sınıf, metrik)
     for m in class_metrics:
         for cls in CLASSES:
-            col = f"{m}_{cls}"
-            if col in runs.columns:
-                parts.append(runs[ids].assign(**{"class": cls, "metric": m, "value": runs[col].astype(float)}))
+            if f"{m}_{cls}" in runs.columns:
+                colmap[f"{m}_{cls}"] = (cls, m)
     for m in network_metrics:
         if m in runs.columns:
-            parts.append(runs[ids].assign(**{"class": NETWORK_CLASS, "metric": m, "value": runs[m].astype(float)}))
-    if not parts:
+            colmap[m] = (NETWORK_CLASS, m)
+    if not colmap:
         return pd.DataFrame(columns=[*ids, "class", "metric", "value"])
-    return pd.concat(parts, ignore_index=True)
+    long = runs[ids + list(colmap)].melt(id_vars=ids, var_name="column", value_name="value")
+    long["class"] = long["column"].map({k: v[0] for k, v in colmap.items()})
+    long["metric"] = long["column"].map({k: v[1] for k, v in colmap.items()})
+    long["value"] = pd.to_numeric(long["value"], errors="coerce").astype(float)
+    return long.drop(columns="column")
 
 
 def method_sort_key(m: str) -> tuple[int, str]:
