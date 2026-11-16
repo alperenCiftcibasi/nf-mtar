@@ -104,7 +104,7 @@ radio:                                   # §5.5 IEEE 802.15.4
 energy:                                  # §5.5 birinci dereceden radyo modeli
   e_elec_nJ_per_bit: 50.0                # §5.5 E_elec = 50 nJ/bit
   eps_amp_pJ_per_bit_m2: 100.0           # §5.5 eps_amp = 100 pJ/bit/m^2
-  initial_J: 2.0                         # §5.5 başlangıç enerjisi (E8'de 0.5 J ile geçersiz kılınır)
+  initial_J: 20.0                        # §5.18a-2 M6 kalibrasyonu (B1 yük 2,0'da 5 seed ölümsüz en küçük; M5: 2 J); E8'de 0.5 J
   dead_threshold_J: 0.0                  # §5.5 enerjisi biten düğüm ölür
 
 traffic:                                 # §5.6 trafik modeli (traffic.py): yöntemden bağımsız, seed'den önceden üretilen iz (trace)

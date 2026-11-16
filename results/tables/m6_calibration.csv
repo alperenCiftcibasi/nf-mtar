@@ -1,0 +1,5 @@
+step,initial_J,load,n_seeds,seeds_with_death,fnd_min_s,dead_nodes_mean,dead_nodes_max,energy_total_J_mean,pdr_critical_mean,pdr_regular_mean,pdr_noncritical_mean,selected
+energy,5.0000,2.0000,5,5,243.1761,6.0000,8,161.6783,0.6787,0.1104,0.1536,False
+energy,10.0000,2.0000,5,4,494.1459,0.8000,1,160.9906,0.6914,0.1116,0.1516,False
+energy,20.0000,2.0000,5,0,,0.0000,0,160.9974,0.6906,0.1116,0.1517,True
+energy,50.0000,2.0000,5,0,,0.0000,0,160.9974,0.6906,0.1116,0.1517,False
