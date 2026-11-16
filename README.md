@@ -1,6 +1,18 @@
 # NF-MTAR Re-implementation: Neuro-Fuzzy Multi-Topology Adaptive Routing for Healthcare IoT
 
-<!-- Skeleton README. Sections marked TODO are filled in as the project progresses. -->
+## Status (16 November 2026)
+
+| Milestone | State |
+|---|---|
+| M0–M4: config, physical network and V-SDN partition, IEEE 802.15.4 radio/MAC (AIFS calibrated), traffic trace, router (§5.9 edge cost, B1/B2 costs, two-stage paths) | done |
+| M5: event-driven simulation core (`simulation.py`) and metrics (`metrics.py`, incl. QoS satisfaction and Φ) | done |
+| M6: operating point calibration (PRR curve, 20 J initial energy, E1 load grid {0.25, 0.5, 1}); B1-plain / B1 / B2 at 3 loads × 5 seeds | done |
+| M7: zero-order Sugeno fuzzy engine (750 rules), PyTorch equivalent, feature extraction, B3 strategy, paper-rule calibration report | done |
+| M9 (minimal): rank (§5.17), dynamic-root controller with periodic + root-health triggers, ε hysteresis and min_dwell; B3 runs in the simulator | done (traffic trigger not implemented) |
+| E5-lite: forced root failure at t = 300 s, B1 vs B3, 3 seeds | done (`results/tables/e5_lite.csv`) |
+| M8: oracle labels and training of the fuzzy engine (NF-MTAR) | **missing** |
+| Full experiments E1–E5, E8, E9 (contribution K1), statistics, paper comparison | **missing** |
+
 
 ## Project Title
 
@@ -103,7 +115,30 @@ pytest
 
 ## How to Run
 
-Available now:
+```bash
+pytest                                                           # unit tests (tests/)
+
+# one simulation run (method, seed, duration, load, relay mode) -> console table + one row in results/tables/runs.csv
+python experiments/baseline/run.py --method B1 --seed 1 --duration 600 --load 0.5 --relay-mode strict
+python experiments/baseline/run.py --method B3 --seed 1 --load 0.25 --no-append    # dynamic fuzzy root (B3)
+
+# parallel batch: method x load x seed [x parameter grid], one process per core, resumes from runs.csv by run_id
+python experiments/run_batch.py --experiment m6_baselines --methods B1-plain B1 B2 --loads 0.25 0.5 1.0 --n-seeds 5
+python experiments/run_batch.py --experiment m6_energy --methods B1 --loads 2.0 --grid energy.initial_J=5,10,20,50
+
+# M6 operating point: apply the CLAUDE.md §5.18a rules to the batch results (--write updates configs/default.yaml)
+python experiments/calibration/m6_operating_point.py energy|load|baselines
+python experiments/analysis/m6_plots.py                          # -> b3_check.csv, m6_pdr_by_class.png, m6_latency_by_class.png
+
+# fuzzy engine demo: scores, confidence and the dominant rule for example nodes and for a real network
+python experiments/demo/fuzzy_demo.py [--seed 1] [--pruned]
+python experiments/analysis/fuzzy_paper_rules.py                 # paper rules 1/47/98 vs our expert consequents
+
+# E5-lite: kill every topology root at t = 300 s (B1 vs B3, load 0.25, 3 seeds)
+python experiments/e5_lite.py                                    # -> results/tables/e5_lite.csv
+```
+
+Earlier analysis and calibration scripts:
 
 ```bash
 # draw the physical network and the V-SDN partition for one seed
@@ -115,24 +150,9 @@ python experiments/analysis/e0_connectivity.py                   # -> results/ta
 
 # MAC AIFS calibration: saturated three-sender sweep; writes the best AIFS pair to configs/default.yaml
 python experiments/calibration/mac_aifs.py                       # -> results/tables/mac_aifs_calibration.csv (--no-write: table only)
-
-pytest                                                           # unit tests (tests/)
 ```
 
-TODO: fill in as scripts are added. Planned entry points:
-
-```bash
-# generate training data and train the fuzzy engine
-python experiments/build_training_data.py --config configs/default.yaml
-python experiments/train.py --config configs/default.yaml
-
-# baseline and proposed runs
-python experiments/baseline/<script>.py
-python experiments/proposed/<script>.py
-
-# analysis, figures and paper comparison
-python experiments/analysis/<script>.py
-```
+Not yet implemented: `experiments/build_training_data.py` and `experiments/train.py` (M8, training of NF-MTAR).
 
 Outputs: one row per run in `results/tables/runs.csv`, figures in `results/figures/`, trained models in `results/models/`.
 
@@ -140,7 +160,7 @@ Outputs: one row per run in `results/tables/runs.csv`, figures in `results/figur
 
 | ID | Paper reference | What is varied | Methods | Seeds |
 |---|---|---|---|---|
-| E1 | Fig. 4a, 5a, Table 4 | load multiplier in {0.5, 1.0, 2.0}; per-class throughput, PDR, latency | B1-plain, B1, B2, B3, NF-MTAR | 30 |
+| E1 | Fig. 4a, 5a, Table 4 | load multiplier in {0.25, 0.5, 1} (M6 calibration); per-class throughput, PDR, latency | B1-plain, B1, B2, B3, NF-MTAR | 30 |
 | E2 | Fig. 6b | network size N in {20, 50, 100, 150, 200} at constant density | B1-plain, B1, B3, NF-MTAR | 20 |
 | E3 | Fig. 6d | latency vs. hop count (derived from E1 packet logs) | same as E1 | — |
 | E4 | Fig. 6c | critical packet size in {64, 128, 256, 512, 1024} B | TODO | 20 |
@@ -151,11 +171,11 @@ Statistics: runs are paired by seed; paired t-test and Wilcoxon signed-rank test
 
 ## Proposed Extension
 
-TODO: to be decided. Candidate main contribution: *interpretability-preserving training* of the fuzzy engine (anchored regularization toward the expert rule base vs. plain L2 vs. none, with a λ sweep), evaluated by regret, top-1 agreement, term-order violations and the E1 network metrics. Supporting ablations: input ablation and the hysteresis margin / confidence-gate sweep.
+Chosen (K1, experiment E9; not yet run): *interpretability-preserving training* of the fuzzy engine — anchored regularization toward the expert rule base vs. plain L2 vs. none, λ ∈ {1e-4, 1e-3, 1e-2, 1e-1} — evaluated by interpretability measures (term-order violations, coverage, distinguishability, consequent monotonicity, deviation from the expert) and performance (validation MSE, Spearman, top-1, regret, and the E1 network metrics). Supporting ablations: input ablation (K3) and the hysteresis margin / confidence-gate sweep (K9). See `CLAUDE.md` §5.20.
 
 ## Experimental Results
 
-TODO: tables and figures (`results/tables/`, `results/figures/`) with mean ± 95% CI, statistical tests, and the paper comparison table (`results/tables/paper_comparison.csv`).
+Preliminary (M6, 5 seeds): `results/tables/m6_baselines.csv`, `results/tables/b3_check.csv`, `results/tables/e5_lite.csv`, figures `results/figures/m6_pdr_by_class.png` and `m6_latency_by_class.png`. The full E1–E9 results with 95% CIs and statistical tests are not yet produced.
 
 ## Limitations
 
@@ -163,7 +183,7 @@ TODO: tables and figures (`results/tables/`, `results/figures/`) with mean ± 95
 - The security level (π7) and redundancy (π8) policies of the paper are out of scope.
 - Each node generates a single traffic class; partitions are disjoint and deterministic.
 - Traffic is a pre-generated, method-independent trace (common random numbers): critical 64 B Poisson at 1 packet/s plus Poisson-started 30 s "critical-care episodes" at 10 packets/s (mean one per 5 min per node); regular 128–256 B periodic at 1 packet/s with ±10 % jitter and random phase; non-critical 512–1024 B Poisson at 0.2 packets/s. `load_multiplier` scales only the base rates. Each node draws from its own `SeedSequence.spawn` stream, so changing one class's parameters leaves the other classes' traces unchanged.
-- The radio is a simplified IEEE 802.15.4 model (distance-based PRR, first-order radio energy model, a shared channel without an explicit interference model).
+- The radio is a simplified IEEE 802.15.4 model (logistic distance-based PRR with d50 = 45 m, s = 3.5 m, first-order radio energy model, a shared channel without an explicit interference model).
 - Several paper parameters are undefined or inconsistent; the choices made are documented in `CLAUDE.md` and in the report.
 - TODO: extend after the experiments.
 
