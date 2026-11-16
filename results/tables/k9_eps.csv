@@ -1,0 +1,5 @@
+epsilon,confidence_gate,conf_min,n_seeds,root_changes_E,root_changes_L,root_changes_R,root_changes_total,pdr_critical,pdr_regular,pdr_noncritical,phi
+0.0500,False,,5,14.2000,43.6000,0.2000,58.0000,0.9822,0.8296,0.2594,0.5829
+0.1000,False,,5,0.6000,9.0000,0.0000,9.6000,0.9844,0.8390,0.2577,0.5643
+0.2000,False,,5,0.0000,0.6000,0.0000,0.6000,0.9859,0.8832,0.2595,0.5357
+0.0500,True,0.3000,5,12.0000,36.2000,0.2000,48.4000,0.9818,0.8267,0.2607,0.5850

@@ -1,22 +1,22 @@
 metric,x,load,paper_nfmtar,paper_baseline,paper_baseline_name,ours_nfmtar,ours_baseline,ours_baseline_name,ours_n_seeds,rel_impr_paper,rel_impr_ours,trend_agreement,note
-throughput_pct,critical,0.25,95.2,71.4,RPL,,,,0,0.33333333333333326,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-throughput_pct,regular,0.25,87.3,68.2,RPL,,,,0,0.2800586510263929,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-throughput_pct,noncritical,0.25,78.9,62.1,RPL,,,,0,0.2705314009661836,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-throughput_pct,critical,0.5,95.2,71.4,RPL,,,,0,0.33333333333333326,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-throughput_pct,regular,0.5,87.3,68.2,RPL,,,,0,0.2800586510263929,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-throughput_pct,noncritical,0.5,78.9,62.1,RPL,,,,0,0.2705314009661836,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
-latency_ms,critical,0.25,18.4,67.3,RPL,,,,0,0.7265973254086181,,,
-latency_ms,regular,0.25,45.2,94.8,RPL,,,,0,0.5232067510548523,,,
-latency_ms,noncritical,0.25,89.7,156.2,RPL,,,,0,0.4257362355953905,,,
-latency_ms,critical,0.5,18.4,67.3,RPL,,,,0,0.7265973254086181,,,
-latency_ms,regular,0.5,45.2,94.8,RPL,,,,0,0.5232067510548523,,,
-latency_ms,noncritical,0.5,89.7,156.2,RPL,,,,0,0.4257362355953905,,,
+throughput_pct,critical,0.25,95.2,71.4,RPL,97.27879718778854,,,10,0.33333333333333326,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+throughput_pct,regular,0.25,87.3,68.2,RPL,99.81055281947377,,,10,0.2800586510263929,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+throughput_pct,noncritical,0.25,78.9,62.1,RPL,23.917105687734463,,,10,0.2705314009661836,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+throughput_pct,critical,0.5,95.2,71.4,RPL,95.12379859661498,,,10,0.33333333333333326,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+throughput_pct,regular,0.5,87.3,68.2,RPL,84.02048769811226,,,10,0.2800586510263929,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+throughput_pct,noncritical,0.5,78.9,62.1,RPL,14.256696489268666,,,10,0.2705314009661836,,,throughput = teslim edilen bayt / üretilen bayt (§5.13)
+latency_ms,critical,0.25,18.4,67.3,RPL,67.05163559160161,,,10,0.7265973254086181,,,
+latency_ms,regular,0.25,45.2,94.8,RPL,105.80436874915752,,,10,0.5232067510548523,,,
+latency_ms,noncritical,0.25,89.7,156.2,RPL,691.630345486014,,,9,0.4257362355953905,,,
+latency_ms,critical,0.5,18.4,67.3,RPL,81.22079665568126,,,10,0.7265973254086181,,,
+latency_ms,regular,0.5,45.2,94.8,RPL,313.273229979973,,,10,0.5232067510548523,,,
+latency_ms,noncritical,0.5,89.7,156.2,RPL,809.4665972610045,,,10,0.4257362355953905,,,
 table4_throughput_pct,all,0.25,94.3,86.4,TSFIS-GWO,,,,0,0.09143518518518508,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
 table4_throughput_pct,all,0.5,94.3,86.4,TSFIS-GWO,,,,0,0.09143518518518508,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
 table4_latency_ms,all,0.25,18.4,38.9,TSFIS-GWO,,,,0,0.5269922879177378,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
 table4_latency_ms,all,0.5,18.4,38.9,TSFIS-GWO,,,,0,0.5269922879177378,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
-table4_pdr_pct,all,0.25,98.7,97.2,TSFIS-GWO,,,,0,0.015432098765432098,,,bizim taban B1-plain (makalede TSFIS-GWO)
-table4_pdr_pct,all,0.5,98.7,97.2,TSFIS-GWO,,,,0,0.015432098765432098,,,bizim taban B1-plain (makalede TSFIS-GWO)
+table4_pdr_pct,all,0.25,98.7,97.2,TSFIS-GWO,95.44385202754493,,,10,0.015432098765432098,,,bizim taban B1-plain (makalede TSFIS-GWO)
+table4_pdr_pct,all,0.5,98.7,97.2,TSFIS-GWO,87.96319284202008,,,10,0.015432098765432098,,,bizim taban B1-plain (makalede TSFIS-GWO)
 table4_qos_pct,all,0.25,97.3,93.8,TSFIS-GWO,,,,0,0.0373134328358209,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
 table4_qos_pct,all,0.5,97.3,93.8,TSFIS-GWO,,,,0,0.0373134328358209,,,makale toplu değerin tanımını vermiyor; bizde eşlenmedi
 scalability_latency_ms,20,,12.0,,,,,,0,,,,"bizim: E2, kritik sınıf ort. gecikme (makale sınıfı belirtmiyor)"
