@@ -188,8 +188,10 @@ def latency_percentiles(runs: pd.DataFrame, out: str | Path, *, load: float | No
 
 def scalability(runs: pd.DataFrame, out: str | Path, *, x_col: str = "n_nodes",
                 metric: str = "lat_mean_ms_critical", ylabel: str = "Kritik sınıf ort. gecikme (ms)",
-                methods: Sequence[str] | None = None, paper: Mapping[str, Mapping[int, float]] | None = None) -> Path:
-    """e2_scalability: x = düğüm sayısı, y = metrik (seed ortalaması ± %95 GA); paper verilirse kesik referans."""
+                methods: Sequence[str] | None = None, paper: Mapping[str, Mapping[int, float]] | None = None,
+                xlabel: str = "Sensör sayısı N (yoğunluk sabit)", log_x: bool = False) -> Path:
+    """e2_scalability (ve e4_packet_size): x = sayısal ızgara değişkeni, y = metrik (seed ortalaması ± %95 GA);
+    paper verilirse kesik referans."""
     apply_style()
     meths = _methods(runs, methods)
     fig, ax = plt.subplots(figsize=(5.2, 3.6))
@@ -205,7 +207,9 @@ def scalability(runs: pd.DataFrame, out: str | Path, *, x_col: str = "n_nodes",
         xs = sorted(vals)
         ax.plot(xs, [vals[v] for v in xs], color=INK if k == 0 else MUTED, linestyle="--", linewidth=1.2,
                 marker="x", label=f"Makale: {pm}")
-    ax.set_xlabel("Sensör sayısı N (yoğunluk sabit)")
+    if log_x:
+        ax.set_xscale("log", base=2)
+    ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend(loc="upper left")
     return _finish(fig, out)
