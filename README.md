@@ -103,12 +103,63 @@ pytest
 
 ## How to Run
 
-Available now:
+All commands are run from the repository root. Every script prints its options with `--help`; every parameter not given on the command line comes from `configs/default.yaml` (single source of truth) and can be overridden with `--set key=value`.
+
+### Tests
 
 ```bash
-# draw the physical network and the V-SDN partition for one seed
+pytest                         # all unit tests (tests/)
+pytest tests/test_stats.py -q  # statistics and analysis only
+```
+
+### Single run
+
+One method × one seed; appends one row to `results/tables/runs.csv` and prints a per-class table.
+
+```bash
+python experiments/baseline/run.py --method B1 --seed 1 --duration 600 --load 1.0 --relay-mode strict \
+    --experiment smoke [--packet-log] [--no-append] [--set key=value ...]
+```
+
+`--packet-log` also writes one row per packet to `results/packet_logs/<run_id>.parquet` (needed for the latency CDF and E3).
+
+### Batch runs
+
+Method × load × seed [× parameter grid], one process per core, resumable (runs whose `run_id` is already in the output CSV are skipped).
+
+```bash
+python experiments/run_batch.py --experiment E1 --methods B1-plain B1 B2 B3 NF-MTAR \
+    --loads 0.25 0.5 1 --n-seeds 30 --duration 600
+python experiments/run_batch.py --experiment m6_energy --methods B1 --loads 2.0 --n-seeds 5 \
+    --grid energy.initial_J=5,10,20,50          # --dry-run lists the tasks without running them
+```
+
+TODO: batch runs do not write packet logs yet; E1 packet logs currently come from `run.py --packet-log`.
+
+### Analysis
+
+```bash
+python experiments/analysis/make_all.py [--trained-model results/models/<run_id>.json]
+```
+
+reads `results/tables/runs.csv` (plus packet logs and auxiliary tables when present) and produces, skipping with a warning whatever is missing:
+
+| Output | Script | Content |
+|---|---|---|
+| `results/tables/<experiment>_stats.csv` | `stats.py` | per experiment × load × class × metric: mean ± 95% CI; paired t-test, Wilcoxon signed-rank, d_z and 95% CI of the paired difference for every method pair; Friedman; Holm–Bonferroni; internal consistency checks (the run fails if t ≠ diff/SE, d_z ≠ t/√n, W or χ² out of range, ...) |
+| `results/figures/*.png` (300 dpi) | `plots.py` | e1_throughput_by_class, e1_latency_by_class, e1_latency_percentiles, e1_latency_cdf, e3_latency_vs_hops, e2_scalability, e4_packet_size, e8_lifetime, e8_root_energy, e5_root_failure, training_curves, e9_pareto, e9_term_shapes |
+| `results/tables/paper_comparison.csv` | `paper_comparison.py` | paper vs. our values, relative improvement (positive = NF-MTAR better), trend agreement |
+
+The scripts can also be run on their own, e.g. `python experiments/analysis/stats.py --experiments E1 --holm-family cell`.
+Holm family: by default all pairwise comparisons inside one (experiment, load, class, metric) cell; `--holm-family experiment` pools a whole experiment (more conservative).
+
+TODO: producers for `e8_root_energy.csv`, `e5_timeline.csv`, `training_curves.csv` and `e9_summary.csv` do not exist yet; the expected columns are documented in the docstrings of `experiments/analysis/plots.py`.
+
+### Other scripts
+
+```bash
+# physical network and V-SDN partition for one seed
 python experiments/analysis/plot_topology.py --seed 1            # -> results/figures/topology.png
-python experiments/analysis/plot_topology.py --set placement.random.r_placement=uniform --out results/figures/topology_uniform.png
 
 # E0: connectivity analysis of the disjoint partition (uniform vs region placement, 30 seeds)
 python experiments/analysis/e0_connectivity.py                   # -> results/tables/e0_connectivity*.csv, results/figures/e0_topology_uniform_vs_region.png
@@ -116,31 +167,55 @@ python experiments/analysis/e0_connectivity.py                   # -> results/ta
 # MAC AIFS calibration: saturated three-sender sweep; writes the best AIFS pair to configs/default.yaml
 python experiments/calibration/mac_aifs.py                       # -> results/tables/mac_aifs_calibration.csv (--no-write: table only)
 
-pytest                                                           # unit tests (tests/)
+# M6 operating point calibration: reads runs.csv rows made by run_batch.py and applies the §5.18a rules
+python experiments/calibration/m6_operating_point.py energy|load [--write]   # -> results/tables/m6_calibration.csv
+python experiments/calibration/m6_operating_point.py baselines               # -> results/tables/m6_baselines.csv
 ```
 
-TODO: fill in as scripts are added. Planned entry points:
+TODO: training data generation and training (`experiments/build_training_data.py`, `experiments/train.py`) and the proposed-method scripts (`experiments/proposed/`) are not implemented yet.
 
-```bash
-# generate training data and train the fuzzy engine
-python experiments/build_training_data.py --config configs/default.yaml
-python experiments/train.py --config configs/default.yaml
+## Repository Structure
 
-# baseline and proposed runs
-python experiments/baseline/<script>.py
-python experiments/proposed/<script>.py
-
-# analysis, figures and paper comparison
-python experiments/analysis/<script>.py
 ```
-
-Outputs: one row per run in `results/tables/runs.csv`, figures in `results/figures/`, trained models in `results/models/`.
+├── CLAUDE.md                   design decisions (§ numbers are cited in the code)
+├── configs/
+│   ├── default.yaml            all simulation, policy, engine and experiment parameters
+│   └── paper_reference.yaml    values reported in the paper (for paper_comparison.py)
+├── src/nfmtar/
+│   ├── config.py               YAML -> dataclasses, --set overrides
+│   ├── network/                graph.py (unit disk graph, node state), radio.py (802.15.4, PRR, energy), partition.py (V_E, V_L, V_R)
+│   ├── traffic.py              method-independent traffic trace (common random numbers)
+│   ├── router.py               edge cost, reverse Dijkstra, two-stage paths, bypass
+│   ├── controller.py           V-SDN controller (triggers, hysteresis)
+│   ├── engine/                 base, baselines (B1-plain, B1, B2), fuzzy (+ fuzzy_torch), oracle, trainer, rank
+│   ├── metrics.py              per-class and network metrics, runs.csv row, packet log
+│   └── simulation.py           event-driven closed-loop simulation
+├── experiments/
+│   ├── baseline/run.py         single run
+│   ├── run_batch.py            parallel batch runner
+│   ├── calibration/            MAC AIFS and M6 operating-point calibration
+│   ├── diagnostics/            route statistics
+│   ├── demo/                   fuzzy engine demo
+│   ├── analysis/               stats, plots, paper comparison, make_all, topology and E0 scripts
+│   ├── proposed/               TODO
+│   ├── build_training_data.py  TODO (skeleton)
+│   └── train.py                TODO (skeleton)
+├── results/
+│   ├── tables/                 runs.csv, *_stats.csv, paper_comparison.csv, calibration tables
+│   ├── figures/                PNG figures
+│   └── models/                 trained fuzzy parameters (JSON)
+├── tests/                      pytest unit tests
+├── data/                       generated training data (not committed)
+├── presentation/               TODO
+├── report/                     TODO
+└── references/
+```
 
 ## Reproduction Experiments
 
 | ID | Paper reference | What is varied | Methods | Seeds |
 |---|---|---|---|---|
-| E1 | Fig. 4a, 5a, Table 4 | load multiplier in {0.5, 1.0, 2.0}; per-class throughput, PDR, latency | B1-plain, B1, B2, B3, NF-MTAR | 30 |
+| E1 | Fig. 4a, 5a, Table 4 | load multiplier in {0.25, 0.5, 1.0} (M6 calibration); per-class throughput, PDR, latency | B1-plain, B1, B2, B3, NF-MTAR | 30 |
 | E2 | Fig. 6b | network size N in {20, 50, 100, 150, 200} at constant density | B1-plain, B1, B3, NF-MTAR | 20 |
 | E3 | Fig. 6d | latency vs. hop count (derived from E1 packet logs) | same as E1 | — |
 | E4 | Fig. 6c | critical packet size in {64, 128, 256, 512, 1024} B | TODO | 20 |
