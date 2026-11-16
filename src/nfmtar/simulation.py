@@ -360,7 +360,13 @@ class Simulation:
         self.router = Router.for_method(cfg, self.radio, method, relay_mode)
         self.relay_mode = self.router.relay_mode
         self.channel = Channel.from_network(self.net, cfg.radio.cs_range_m)
+        if root_policy is None and spec.get("root") == "dynamic":   # §5.12 B3 / NF-MTAR: controller + engine (M9)
+            from nfmtar.controller import DynamicRootPolicy
+
+            root_policy = DynamicRootPolicy.for_method(cfg, method, self.radio, self.net)
         self.root_policy: RootPolicy = root_policy or StaticRootPolicy()
+        self.kill_roots_at_s: float | None = None   # E5 kök arıza enjeksiyonu (§5.19); run_simulation ayarlar
+        self.root_failures: list[tuple[float, str, int]] = []
         self.seed = trace.seed
         self.duration_s = trace.duration_s
         self.drain_s = cfg.simulation.drain_s
@@ -426,6 +432,8 @@ class Simulation:
         if self.packets:
             self._push(self.packets[0].packet.created_s, EV_ARRIVAL, "trace", 0)
         self._push(self.warm_up_s, EV_CONTROL, "warm_up_end")
+        if self.kill_roots_at_s is not None:
+            self._push(self.kill_roots_at_s, EV_CONTROL, "kill_roots")
         self._push(self.end_s, EV_CONTROL, "end")
 
         heap = self._heap
@@ -449,6 +457,8 @@ class Simulation:
             elif kind == "warm_up_end":
                 self.airtime_warm_up_s = dict(self.channel.airtime_s_by_class)
                 self.energy_warm_up_J = {v: self.net.nodes[v].energy_J for v in self.net.sensor_ids}
+            elif kind == "kill_roots":
+                self._kill_roots()
             elif kind == "end":
                 break
             else:  # pragma: no cover
@@ -635,6 +645,17 @@ class Simulation:
         rs.reach, rs.plan, rs.root = reach, plan, root
         self.route_update_ms[topology].append((time.perf_counter() - t0) * 1000.0)
 
+    def _kill_roots(self) -> None:
+        """E5 (§5.19): her topolojinin o anki root'u zorla öldürülür (enerji = 0); ölüm işlemi ve yol güncellemesi hemen."""
+        for t in TOPOLOGY_ORDER:
+            u = self.routes[t].root
+            if u is None or not self.net.nodes[u].alive:
+                continue
+            self.net.nodes[u].kill(self.now)
+            self.root_failures.append((self.now, t.value, u))
+            if u not in self._dead_recorded:
+                self._on_death(u)
+
     def _finalize(self) -> None:
         """Bitiş: yolda (kuyrukta veya iletimde) kalan paketler in_flight_at_end (§5.10a)."""
         for ps in self.packets:
@@ -654,6 +675,7 @@ def run_simulation(
     relay_mode: str | None = None,
     duration_s: float | None = None,
     root_policy: RootPolicy | None = None,
+    kill_roots_at_s: float | None = None,
 ) -> SimulationResult:
     """Ağ (§5.1), bölümleme (§5.3), iz (§5.6) ve koşu: aynı (cfg, seed) için bütün yöntemler aynı ağı ve izi görür (§5.19).
 
@@ -662,4 +684,6 @@ def run_simulation(
     """
     pn = build_partitioned_network(cfg, seed)
     trace = build_traffic_trace(cfg, pn.net, seed, duration_s)
-    return Simulation(cfg, pn, trace, method, relay_mode=relay_mode, root_policy=root_policy).run()
+    sim = Simulation(cfg, pn, trace, method, relay_mode=relay_mode, root_policy=root_policy)
+    sim.kill_roots_at_s = kill_roots_at_s
+    return sim.run()
