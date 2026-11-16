@@ -4,7 +4,7 @@ Bu dosya, projenin bağlamını ve alınmış bütün tasarım kararlarını iç
 Kod yazarken bu kararlara uy; bir karardan sapman gerekirse önce sor.
 "BEKLEMEDE" işaretli bölümler henüz netleşmedi; o kısımları uydurma, sor.
 
-Son güncelleme: 12 Kasım 2026
+Son güncelleme: 16 Kasım 2026
 
 ---
 
@@ -245,11 +245,15 @@ Kenar maliyeti (u -> v), tüm terimler [0,1]'e normalize:
   (L_max = −log(PRR_min), PRR_min config, ör. 0.05)
 - depletion(u) = 1 − kalan/başlangıç enerji
 - λ3 = π6 (E: 0.3, L: 0.5, R: 0.8); λ1 = λ2 = (1 − λ3)/2 (toplam 1; config'ten değiştirilebilir)
-- Beklenen davranış (hata değil, raporlanacak ödünleşim): bu enerji modelinde mesafe başına enerji
-  E_hop(d)/d, d* = √(2·E_elec/ε_amp) ≈ 31,6 m'de en küçüktür. Enerji terimi bu yüzden ~30 m'lik atlamaları
-  tercih eder; B1 ise R'ye yakın (~40–50 m) atlamalar kullanır. NF-MTAR/B3 yollarının B1'den ~1,3–1,6 kat
-  daha fazla atlama içermesi beklenir; daha fazlası yoğunluk veya PRR teriminden gelmelidir, incelenir.
-  Ek atlama başına gecikme terimi (yalnızca E için) M5'teki gecikme ölçümlerinden sonra, veriyle karar verilir.
+- Ölçülen davranış (seed 1, tek karar turu, sabit root; `experiments/diagnostics/route_stats.py`,
+  `results/tables/route_stats_seed1*.csv`). Mesafe başına enerji E_hop(d)/d, d* = √(2·E_elec/ε_amp) ≈ 31,6 m'de
+  en küçüktür; §5.9 yollarının ortalama atlama uzunluğu 28–31 m, B1'inki 34–37 m (en az atlama yollarında eşitlik
+  keyfi kırıldığı ve son atlamalar kısa olduğu için B1 atlamaları R'ye yakın değil). Ortalama atlama, strict, E/L/R:
+  B1 2,84 / 2,90 / 4,89; B2 3,16 / 3,20 / 5,07; §5.9 3,40 / 3,55 / 5,20 (B1'in 1,20 / 1,22 / 1,06 katı).
+  λ2 = 0 ile §5.9 B1'in 1,09 / 1,10 / 1,00 katı: kalan ~0,5 atlama PRR teriminden gelir (−log PRR iyi bağlantılarda
+  ≈ 0, atlama başına bedel taşımaz; güvenilirlik için bilinçli). Düzeltme öncesi (d²/R² ve normalize ETX):
+  §5.9 7,58 / 10,15 / 7,00; B2 4,13 / 4,03 / 6,40 (`route_stats_seed1_before.csv`, kod 8650d57).
+  Ek atlama başına gecikme terimi (yalnızca E için) M5–M6 gecikme ölçümlerinden sonra, veriyle karar verilir.
 - B2: cost(u,v) = ETX(u,v) + π6 · depletion(u), ETX = 1/PRR (PRR_min'e kırpılmış), ETX NORMALİZE EDİLMEZ.
   MRHOF (RFC 6719) yol maliyetini ETX toplamı olarak alır ve her atlama en az 1 maliyet taşır; ilk sürümdeki
   (ETX−1)/(ETX_max−1) normalizasyonu bu atlama başı bedeli siliyordu (iyi bağlantılarda ~0,0005/atlama; B2 4–6 atlama).
@@ -273,6 +277,29 @@ Her topoloji için, tetikleyici geldiğinde (§5.18):
 4. İlet: trafik üretimi ve iletim sürekli devam eder; enerji, kuyruk, kayıp güncellenir
 5. Geri besle: metrikler toplanır
 
+### 5.10a Simülasyon çekirdeği — `simulation.py` (M5)
+- **Olay güdümlü** (`heapq`); eşzamanlı olaylarda deterministik sıra (zaman, olay türü önceliği, sıra no).
+- **MAC nedenselliği:** taşıyıcı algılama kararı, algılama anında başlamış iletimlere göre verilir. Hiçbir düğüm
+  kanalı gelecekteki bir aralık için önceden alıp, daha önce algılama yapacak bir düğümün önüne geçemez
+  (fonksiyon çağrı sırası ≠ fiziksel zaman sırası; AIFS önceliği ancak böyle doğru çalışır).
+- **Kuyruk:** düğüm başına sınıf kuyruğu, kapasite π9 (B1-plain: 8); dolu kuyrukta yeni paket düşer.
+- **Servis:** düğüm boşta ve kuyruğu doluysa baş paketin sonraki atlaması O ANKİ yönlendirme tablosundan alınır
+  (atlama atlama iletim; yol değişikliği kuyruktaki paketlere hemen uygulanır). Göndericinin sonraki paketi
+  `RadioModel.next_packet_ready_s`'de hazır (§5.5; kalibrasyonla aynı kural).
+- **Alıcı:** başarılı iletimde paket sonraki düğümün kuyruğuna MAC bitişi + işlem süresinde girer
+  (işlem bileşeni atlama başına bir kez). Edge router havuzdur: teslim zamanı burada kaydedilir.
+- **Kayıp nedenleri:** `queue_overflow`, `channel_access_failure`, `link_loss` (parça kaybı, denemeler tükendi),
+  `no_route`, `node_dead` (ölen düğümün kuyruğundaki paketler), `in_flight_at_end`.
+- **Enerji:** her parça denemesinde gönderici E_elec·b + ε_amp·b·d², alıcı E_elec·b (başarısız denemeler dahil).
+  Edge router'ların enerjisi sınırsız. Enerji ≤ 0 → düğüm ölür, olay loglanır, topolojisinin yolları hemen
+  yeniden hesaplanır.
+- **Yol güncelleme:** bütün yöntemlerde topoloji başına π11'de bir ve yoldaki bir düğüm ölünce hemen. Root
+  yalnızca dinamik yöntemlerde (§5.18) ya da root ölünce (§5.12) değişir. Root seçimi bir arayüzün arkasında:
+  M5'te yalnızca sabit root; controller ve engine M9'da aynı arayüze bağlanır.
+- **Zaman:** metriklere yalnızca t_created ≥ `warm_up_s` olan paketler girer; üretim `duration_s`'de durur;
+  `drain_s` (varsayılan 5 s) boyunca yoldaki paketler tamamlanır, teslim edilmeyenler `in_flight_at_end`.
+- **Korunum:** her sınıf için üretilen = teslim + Σ düşen (nedene göre) + in_flight_at_end (test edilir).
+
 ### 5.11 Engine arayüzü
 Bütün yöntemler aynı arayüzü uygular (yalnızca engine değişir; ağ, trafik, metrik aynı):
 
@@ -294,9 +321,14 @@ class ScoringStrategy(Protocol):
 | B3 fuzzy_untrained | bulanık, uzman param. | dinamik | §5.9 | yok | var | var |
 | NF-MTAR | bulanık, eğitilmiş | dinamik | §5.9 | var | var | var |
 
-- B1-plain = "geleneksel RPL benzeri" referans; V-SDN politikalarının etkisini ayırmak için.
-- Sabit root (B1-plain, B1, B2): başlangıçta topolojinin edge router'a en yakın düğümü; root ölürse
-  aynı kuralla yenisi seçilir (baseline'ların yapay çöküşünü önleyen adillik kararı).
+- B1-plain = "geleneksel RPL benzeri" referans; V-SDN politikalarının etkisini ayırmak için. Politika
+  olmadığı için sınıflar arası fark yok: bütün sınıflar macMinBE 3, AIFS 0, tampon 8 paket (Tablo 1'in orta
+  değeri), yeniden deneme limiti 3 (802.15.4 macMaxFrameRetries varsayılanı; π10'un bağlandığı parametre), tek FIFO kuyruk.
+- Sabit root (B1-plain, B1, B2; `static_root`): topolojinin canlı ve edge router'a yolu olan düğümleri arasında
+  edge router'a Öklid mesafesi en küçük olan; eşitlikte küçük id. Kural yöntemden bağımsızdır, bu yüzden
+  sabit root'lu yöntemler aynı root'u kullanır ve aralarındaki fark yalnızca yol maliyetinden gelir.
+  (En ucuz aday kuralı B1'de eşitlik verir — bütün 1 atlamalık adaylar maliyet 1 — ve root'u id sırasına bırakır.)
+  Root ölürse aynı kuralla yenisi seçilir (baseline'ların yapay çöküşünü önleyen adillik kararı).
 
 ### 5.13 Metrikler — `metrics.py`
 - PDR ve normalize throughput (iletilen/üretilen; sınıf bazında ve toplam) + mutlak throughput (kbit/s)
@@ -304,8 +336,14 @@ class ScoringStrategy(Protocol):
 - Gecikme bileşenleri (kuyruk / iletim / geri çekilme / işlem)
 - Sınıf bazında ulaşılan airtime payı (π1 hedefiyle karşılaştırma)
 - Toplam enerji; ağ ömrü FND ve HND
-- QoS memnuniyet oranı (§5.7)
-- Φ (makale Denk. 6'nın düzeltilmiş hali, α/β/γ config'den) — değerlendirme metriği
+- QoS memnuniyet oranı (§5.7), sınıf başına, ısınma sonrası:
+  (i) süre sınırı oranı = π3 içinde teslim edilen / üretilen;
+  (ii) pencere oranı = π12 uzunluğundaki pencerelerden PDR ≥ π4 ve kayıp ≤ π5 olanların oranı (paket oluşturma
+  zamanına göre pencereye atanır; paketsiz pencere sayılmaz).
+  Not: normalize throughput = PDR ve kayıp = 1 − PDR olduğundan π4 ile π5 aynı büyüklüğün iki eşiğidir ve her
+  sınıfta bağlayıcı olan π5'tir (E: PDR ≥ %99,9; L: ≥ %99; R: ≥ %95). Makaledeki tutarsızlık; raporda belirtilecek.
+- Kayıp nedenlerine göre düşen paket sayıları (§5.10a); bypass edilen paket oranı (§5.4)
+- Φ (makale Denk. 6'nın düzeltilmiş hali, α/β/γ config'den) — değerlendirme metriği (M6)
 - Root değişim sayısı (topoloji başına); root görevi yapmış düğümlerin enerji eğrileri (sıcak nokta analizi)
 - Kopuk düğüm sayısı (bölümleme bağlantısallığı)
 - Karar turu başına çalışma süresi (ms)
@@ -346,6 +384,18 @@ Eşit aralıklı merkezler, komşu terimler 0.5'te kesişir: σ = (Δ/2)/sqrt(ln
 Kuralı insan okunur metne çeviren fonksiyon ("IF x1 is High AND ... THEN 0.82") — canlı demo için.
 Opsiyonel `pruned=True`: bir girdinin tüm terimleri için aynı sonucu veren kuralları birleştir ("don't care").
 Eğitim için PyTorch eşdeğeri (aynı matematik) `fuzzy.py` içinde veya ayrı sınıf olarak.
+
+**Özellik ayrıntıları (M7'de seçildi, onaylandı):** "topoloji içi komşu" = aynı topolojideki canlı sensörler
+(edge router komşu sayılmaz; yakınlığı H ve C taşır); x1'in 2-atlama komşuluğu düğümün kendisini içerir;
+komşusu olmayan düğümde x4 = 0. Normalizasyon log uzayında (softmax(log w)); matematik aynı, σ küçükken 0/0'ı önler.
+Bilinen sınırlılık: yoğun E elipsinde x1 ve x5 doyuyor, E skorları dar aralıkta (seed 1: 0,883–0,960); M9'da bakılacak.
+
+**Makaledeki örnek kurallar (kalibrasyon raporu için; makale s. "Examples of selected rules"):**
+- Kural 1: x1 VeryHigh, x2 High, x3 Low, x4 Good(=High), x5 High ⇒ 0,95
+- Kural 47: x1 High, x2 Medium, x3 Medium, x4 Good(=High), x5 Medium ⇒ 0,78
+- Kural 98: x1 Low, x2 VeryHigh, x3 VeryHigh, x4 Poor(=Low), x5 Low ⇒ 0,15
+Not: Kural 1'de yüksek kullanım (x2 High) "Excellent", Kural 98'de çok yüksek kullanım "Poor"; makalenin kendi
+kuralları x2'de tutarsız (eleştiri listesine). Bizim uzman fonksiyonumuzun bu üç kural için verdiği y_k raporlanır.
 
 **Testler (tests/test_fuzzy.py):** üyelikler [0,1]; merkezde 1; komşular 0.5'te kesişir; monotonluk
 (x3 artınca skor artmaz, x4 artınca azalmaz); kalibrasyon raporu (makalenin Kural 1/47/98 girdileri terim
@@ -407,6 +457,20 @@ Değiştirme kuralı:
 - Varsayılan: ε = 0.05, min_dwell = 2 × π11, confidence_gate = false
 - Her root değişimi loglanır (zaman, topoloji, eski/yeni, R farkı, tetikleyici)
 Ablasyon bayrakları: ε ∈ {0, 0.02, 0.05, 0.1, 0.2}, confidence_gate, root_health_trigger.
+
+### 5.18a Çalışma noktası kalibrasyonu (M6)
+M5 ilk koşularında (B1, seed 1) varsayılan nokta çöktü: FND 90–130 s (root iki aşamalı yolun hunisi olduğu için
+topolojinin bütün trafiğini taşıyıp ilk ölüyor; raporda sıcak nokta bulgusu), kritik olmayan PDR ~0,07, B1'de
+atlama başına PRR ~0,64. Sırayla, her adım bir öncekinin sonucuyla:
+1. **PRR eğrisi:** lojistik PRR(d) = 1/(1+exp((d − d50)/s)); d50 = 0,9·R (45 m), s öyle ki PRR(0,6·R) ≥ 0,98
+   (s = 3,5 → PRR 30/35/40/45/50 m ≈ 0,99/0,95/0,81/0,50/0,19). Gerekçe: COOJA UDGM menzil içinde neredeyse
+   kayıpsız; kayıplar menzil kenarındaki geçiş bölgesinde. Eski eğri duyarlılık noktası olarak config'te kalır.
+   Değişiklikten sonra route_stats yeniden koşulur ve §5.9'daki ölçülen değerler güncellenir.
+2. **Başlangıç enerjisi (E1–E5 için):** {5, 10, 20, 50} J içinden, B1 yük 2,0'da 5 seed'in hepsinde FND > süre olan
+   en küçük değer. E1 QoS'u ölçer, ölümler karışmamalı; tükenme yine değişir (x3 anlamlı kalır). E8 ayrı (0,5 J).
+3. **Yük ızgarası:** B1 yük 1,0'da sınıf PDR'leri hep > 0,98 ise ızgara {1, 2, 4}; herhangi bir sınıfta < 0,80 ise
+   {0,25, 0,5, 1}; aksi halde {0,5, 1, 2}. Trafik tanımları (§5.6) değişmez.
+Kalibrasyon B1 ile yapılır (yöntemlerden bağımsız olsun); sonuç results/tables/m6_calibration.csv.
 
 ### 5.19 Deneyler — `experiments/`
 

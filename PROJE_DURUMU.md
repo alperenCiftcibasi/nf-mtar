@@ -1,6 +1,6 @@
 # NF-MTAR Dönem Projesi — Durum ve Yapılacaklar
 
-**Güncelleme:** 12 Kasım 2026
+**Güncelleme:** 13 Kasım 2026
 **Ders:** Bulanık Mantık — Dönem Projesi
 **Referans makale:** M. S. Parveen ve P. T. V. Bhuvaneswari, "A neuro-fuzzy multi-topology adaptive routing framework for QoS-aware healthcare IoT communications," *Scientific Reports*, vol. 16, art. 3330, 2026. doi: 10.1038/s41598-025-33235-9
 **Yeni teslim tarihi:** ______ (ertelendi; buraya yaz)
@@ -13,8 +13,8 @@
 |---|---|
 | Makale okuması | ✅ Tamamlandı (10/10) |
 | Yöntem tasarımı | ✅ Bütün bileşenler tanımlandı (bölümleme, bulanık motor, öğrenme, rank, yol maliyeti, histerezis) |
-| CLAUDE.md | ✅ Repoda; her kilometre taşından sonra güncelleniyor (son: M4 yol maliyeti düzeltmesi) |
-| Kod | M0–M3 tamam; M4 (`router.py`) yazıldı, yol maliyeti düzeltmesi uygulanıyor; 67 test geçiyor |
+| CLAUDE.md | ✅ Repoda; her kilometre taşından sonra güncelleniyor (son: sabit root kuralı, ölçülen atlama istatistikleri, M5 simülasyon çekirdeği) |
+| Kod | M0–M4 tamam (69 test); sıradaki M5 (`simulation.py` + `metrics.py`) |
 | Tekrarlanacak deney | ✅ Seçildi: E1 ana tekrar deneyi; E2, E3, E4, E5, E8 destekleyici (§6) |
 | Özgün katkı | Seçilmedi (adaylar ve öneri §5'te) |
 | Literatür taraması | ✅ 26 doğrulanmış kaynak, dört alan (Claude Docs belgesi) |
@@ -110,7 +110,7 @@ Her madde en az bir ayrı commit. Durumunu işaretle.
 | M1 | `config.py` + `configs/default.yaml`; fiziksel ağ, yerleşim (E/L/R), bölümleme, bağlantısallık kontrolü | M0 | 2 | [x] |
 | M2 | Radyo: iletim süresi, parçalama, CSMA, PRR, paylaşılan kanal; enerji modeli | M1 | 2 | [x] (AIFS kalibrasyonu dahil) |
 | M3 | Trafik üretimi (üç sınıf, yük çarpanı) | M1 | 2 | [x] |
-| M4 | `router.py`: kenar maliyeti (§5.9), ters yönlü Dijkstra, iki aşamalı yol | M2 | 3 | [~] ilk sürüm commit'lendi; maliyet düzeltmesi |
+| M4 | `router.py`: kenar maliyeti (§5.9), ters yönlü Dijkstra, iki aşamalı yol | M2 | 3 | [x] (önce/sonra yol istatistiği: `route_stats.py`) |
 | M5 | `metrics.py` + `simulation.py` (kapalı döngü) | M2–M4 | 3 | [ ] |
 | M6 | B1 ve B2 baseline'ları, ilk sonuçlar | M5 | **3** | [ ] |
 | M7 | `engine/fuzzy.py` + B3 + testler (monotonluk, kalibrasyon raporu) | M5 | 3 | [ ] |
@@ -255,6 +255,7 @@ Her madde en az bir ayrı commit. Durumunu işaretle.
 - Rank formülünde bulanık skor ters işaretle → argmin en uygunsuz düğümü seçer
 - Yol maliyetinde link kalitesi ters yönde ekleniyor; toplamsal maliyet çarpımsal güvenilirliği temsil etmiyor
 - Yol maliyetindeki doğrusal mesafe terimi atlama başına sabit bedel içermiyor: aynı doğrultudaki bir atlamayı ikiye bölmek maliyeti değiştirmiyor, yani atlama sayısı cezalandırılmıyor (bizim d² sürümümüzde bu, ortalama 7,6–10 atlamalık yollar olarak gözlendi)
+- Tablo 1'de π4 (min. throughput) ile π5 (kayıp toleransı) normalize throughput tanımıyla aynı büyüklüğün iki eşiği; her sınıfta π5 daha sıkı olduğundan π4 hiçbir zaman bağlayıcı değil (ya da throughput başka bir büyüklüğe göre tanımlanmış; makale tanımlamıyor)
 - Küme tanımında sembol tekrarı; ayrıklık koşulu üçlü kesişimle yazılmış
 - "Maksimum olabilirlik" teriminin yanlış kullanımı; P_t tanımsız
 - OpenFlow kuralında "topolojiye ilet" eylemi, öncelik ve kuyruk alanlarının yanlış kullanımı; düğüm tabanlı eşleme
