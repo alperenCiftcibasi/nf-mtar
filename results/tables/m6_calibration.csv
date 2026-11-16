@@ -1,5 +1,8 @@
-step,initial_J,load,n_seeds,seeds_with_death,fnd_min_s,dead_nodes_mean,dead_nodes_max,energy_total_J_mean,pdr_critical_mean,pdr_regular_mean,pdr_noncritical_mean,selected
-energy,5.0000,2.0000,5,5,243.1761,6.0000,8,161.6783,0.6787,0.1104,0.1536,False
-energy,10.0000,2.0000,5,4,494.1459,0.8000,1,160.9906,0.6914,0.1116,0.1516,False
-energy,20.0000,2.0000,5,0,,0.0000,0,160.9974,0.6906,0.1116,0.1517,True
-energy,50.0000,2.0000,5,0,,0.0000,0,160.9974,0.6906,0.1116,0.1517,False
+step,initial_J,load,n_seeds,seeds_with_death,fnd_min_s,dead_nodes_mean,dead_nodes_max,energy_total_J_mean,pdr_critical_mean,pdr_regular_mean,pdr_noncritical_mean,selected,pdr_critical_min,deadline_critical_mean,lat_p95_ms_critical_mean,pdr_regular_min,deadline_regular_mean,lat_p95_ms_regular_mean,pdr_noncritical_min,deadline_noncritical_mean,lat_p95_ms_noncritical_mean,rule_by_mean,rule_by_seed
+energy,5.0000,2.0000,5,5.0000,243.1761,6.0000,8,161.6783,0.6787,0.1104,0.1536,False,,,,,,,,,,,
+energy,10.0000,2.0000,5,4.0000,494.1459,0.8000,1,160.9906,0.6914,0.1116,0.1516,False,,,,,,,,,,,
+energy,20.0000,2.0000,5,0.0000,,0.0000,0,160.9974,0.6906,0.1116,0.1517,True,,,,,,,,,,,
+energy,50.0000,2.0000,5,0.0000,,0.0000,0,160.9974,0.6906,0.1116,0.1517,False,,,,,,,,,,,
+load,,0.5000,5,,,,0,,0.9199,0.7313,0.1582,,0.8831,0.3108,254.6023,0.6556,0.2164,367.0257,0.0912,0.1405,575.1576,"[0.25, 0.5, 1.0]","[0.25, 0.5, 1.0]"
+load,,1.0000,5,,,,0,,0.8811,0.3108,0.1583,,0.8452,0.1724,368.0481,0.2426,0.0002,1122.8388,0.0884,0.1294,668.2216,"[0.25, 0.5, 1.0]","[0.25, 0.5, 1.0]"
+load,,2.0000,5,,,,0,,0.6906,0.1116,0.1517,,0.6557,0.0397,578.8345,0.0859,0.0000,2305.5635,0.0914,0.1017,979.4247,"[0.25, 0.5, 1.0]","[0.25, 0.5, 1.0]"

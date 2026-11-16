@@ -344,7 +344,7 @@ experiments:                             # §5.19
     area_m: [300.0, 300.0]
     duration_s: 600.0
     n_seeds: 30
-    load_multipliers: [0.5, 1.0, 2.0]
+    load_multipliers: [0.25, 0.5, 1]
     methods: [B1-plain, B1, B2, B3, NF-MTAR]
     outputs: [mean_ci95_by_class, histograms, cdf, percentiles]
   E2:                                    # ölçeklenebilirlik (Şekil 6b), YOĞUNLUK SABİT
