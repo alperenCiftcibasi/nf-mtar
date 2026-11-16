@@ -281,6 +281,7 @@ class SimulationResult:
     route_update_ms: dict[Topology, list[float]]
     airtime_total_s: dict[str, float]              # bütün koşu
     airtime_warm_up_s: dict[str, float]            # ısınma sonunda birikmiş
+    energy_warm_up_J: dict[int, float]             # ısınma sonunda sensörlerin kalan enerjisi (§5.13 Φ'deki U_t)
     energy_tx_J: float                             # tamamlanan atlamaların parça denemelerinin gönderici enerjisi
     energy_rx_J: float                             # tamamlanan atlamaların sensör alıcı enerjisi
     energy_rx_edge_J: float                        # edge router alıcıların enerjisi (sensör bütçesinde değil)
@@ -299,6 +300,12 @@ class SimulationResult:
         """Sensör başına tüketilen enerji = başlangıç − kalan (§5.13)."""
         net = self.pn.net
         return {v: net.nodes[v].initial_energy_J - net.nodes[v].energy_J for v in net.sensor_ids}
+
+    def energy_consumed_after_warm_up_J(self) -> dict[int, float]:
+        """Sensör başına ısınma sonrası tüketim = ısınma sonundaki kalan − son kalan (§5.13 Φ'deki U_t)."""
+        net = self.pn.net
+        start = self.energy_warm_up_J or {v: net.nodes[v].initial_energy_J for v in net.sensor_ids}
+        return {v: start[v] - net.nodes[v].energy_J for v in net.sensor_ids}
 
     def packets_after_warm_up(self) -> list[PacketState]:
         """Metriklere giren paketler: oluşturulma zamanı >= warm_up_s (§5.19)."""
@@ -399,6 +406,7 @@ class Simulation:
         self.n_hops_completed = 0
         self.ttl_drops = 0
         self.airtime_warm_up_s: dict[str, float] = {}
+        self.energy_warm_up_J: dict[int, float] = {}
         self._finished = False
 
     # ------------------------------------------------------------------ olay kuyruğu
@@ -440,6 +448,7 @@ class Simulation:
                 self._push(self.now + self._route_period_s(payload), EV_ROUTE_UPDATE, "route", payload)
             elif kind == "warm_up_end":
                 self.airtime_warm_up_s = dict(self.channel.airtime_s_by_class)
+                self.energy_warm_up_J = {v: self.net.nodes[v].energy_J for v in self.net.sensor_ids}
             elif kind == "end":
                 break
             else:  # pragma: no cover
@@ -453,6 +462,7 @@ class Simulation:
             root_changes=list(self.root_changes), roots={t: rs.root for t, rs in self.routes.items()},
             route_update_ms={t: list(v) for t, v in self.route_update_ms.items()},
             airtime_total_s=dict(self.channel.airtime_s_by_class), airtime_warm_up_s=dict(self.airtime_warm_up_s),
+            energy_warm_up_J=dict(self.energy_warm_up_J),
             energy_tx_J=self.energy_tx_J, energy_rx_J=self.energy_rx_J, energy_rx_edge_J=self.energy_rx_edge_J,
             n_hops_completed=self.n_hops_completed, hops_active_at_end=len(self.active), ttl_drops=self.ttl_drops, wall_clock_s=time.perf_counter() - t_wall,
         )

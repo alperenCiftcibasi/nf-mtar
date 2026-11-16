@@ -305,3 +305,40 @@ def test_runs_csv_append_and_packet_log(short_b1, tmp_path):
     assert out.suffix in (".parquet", ".gz") and out.exists()
     back = pd.read_parquet(out) if out.suffix == ".parquet" else pd.read_csv(out)
     assert len(back) == len(frame)
+
+
+# ----------------------------------------------------------------------------- Φ (§5.13)
+
+
+def test_phi_formula_hand_computed():
+    """§5.13: Φ_t = α·D̄/π3 + β·(1 − PDR) + γ·U, γ = π6, α = β = (1 − π6)/2; elle iki örnek."""
+    from nfmtar.metrics import phi_terms
+
+    # E (π6 = 0,3, π3 = 25 ms): D̄ = 20 ms, PDR 0,9, U 0,1 -> 0,35·0,8 + 0,35·0,1 + 0,3·0,1 = 0,345
+    t = phi_terms(20.0, 25.0, 0.9, 0.1, 0.3)
+    assert math.isclose(t["phi"], 0.345) and math.isclose(t["phi_delay_norm"], 0.8) and math.isclose(t["phi_loss"], 0.1)
+    # R (π6 = 0,8, π3 = 500 ms): D̄ = 500 ms (sınırda), PDR 1, U 0,5 -> 0,1·1 + 0 + 0,8·0,5 = 0,5
+    assert math.isclose(phi_terms(500.0, 500.0, 1.0, 0.5, 0.8)["phi"], 0.5)
+    assert math.isnan(phi_terms(math.nan, 25.0, 0.0, 0.1, 0.3)["phi"])        # teslim yoksa tanımsız
+
+
+def test_phi_in_class_metrics_and_runs_row(short_b1):
+    """§5.13: sınıf Φ_t'si sınıf metriklerinden ve ısınma sonrası topoloji enerjisinden; runs.csv Φ = sınıf ortalaması."""
+    res = short_b1
+    cfg = res.cfg
+    net, part = res.pn.net, res.pn.part
+    phis = []
+    for cls in CLASSES:
+        m = class_metrics(res, cls)
+        topo = res.class_topology[cls]
+        pol = cfg.policy.for_topology(topo)
+        members = part.members[topo]
+        used = sum(res.energy_warm_up_J[v] - net.nodes[v].energy_J for v in members)
+        u = used / sum(net.nodes[v].initial_energy_J for v in members)
+        a = (1 - pol.energy_weight) / 2
+        expected = a * m["lat_mean_ms"] / pol.max_delay_ms + a * (1 - m["pdr"]) + pol.energy_weight * u
+        assert 0 < u < 1 and math.isclose(m["phi_U"], u) and math.isclose(m["phi"], expected, rel_tol=1e-12)
+        phis.append(m["phi"])
+    # ısınma sonrası enerji, bütün koşunun enerjisinden küçük (ısınmada da tüketim var)
+    assert sum(res.energy_consumed_after_warm_up_J().values()) < sum(res.energy_consumed_J().values())
+    assert math.isclose(runs_row(res, "t")["phi"], float(np.mean(phis)))

@@ -305,10 +305,8 @@ metrics:                                 # §5.13
   delay_components: true                 # §5.13 kuyruk / iletim / geri çekilme / işlem
   lifetime: [FND, HND]                   # §5.13 ilk / yarı düğüm ölümü
   qos_satisfaction: true                 # §5.7 π3/π4/π5 eşiklerini sağlayan paket/pencere oranı
-  phi:                                   # §5.13 makale Denk. 6'nın düzeltilmiş hali; α/β/γ (varsayılan eşit; CLAUDE.md'de sayı yok)
-    alpha: 0.3333
-    beta: 0.3333
-    gamma: 0.3334
+  phi:                                   # §5.13 Φ_t = α_t·D̄_t/π3_t + β_t·(1 − PDR_t) + γ_t·U_t ; Φ = Σ_t Φ_t / 3 (küçük = iyi)
+    weights: from_pi6                    # §5.13 γ_t = π6_t, α_t = β_t = (1 − π6_t)/2 (yol maliyetiyle tutarlı)
   root_change_count: true                # §5.13 topoloji başına
   root_energy_curves: true               # §5.13 sıcak nokta analizi
   disconnected_nodes: true               # §5.13 bölümleme bağlantısallığı

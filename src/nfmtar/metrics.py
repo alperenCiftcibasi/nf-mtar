@@ -18,7 +18,11 @@ Uygulanan kararlar:
   π12 uzunluğundaki pencerelerden PDR >= π4/100 VE kayıp <= π5/100 olanların oranı (paket oluşturma zamanına göre
   pencereye atanır; paketsiz pencere sayılmaz). π4 ve π5 aynı büyüklüğün iki eşiği olduğundan bağlayıcı olan π5'tir.
 - §5.13 root değişim sayısı (topoloji başına), karar turu (yol güncellemesi) başına ortalama çalışma süresi (ms).
-- Φ (makale Denk. 6 düzeltilmiş) M6'da eklenecek.
+- §5.13 Φ (makale Denk. 6'nın düzeltilmiş hali; küçük = iyi), ısınma sonrası, sınıf başına:
+  Φ_t = α_t · D̄_t/π3_t + β_t · (1 − PDR_t) + γ_t · U_t ; Φ = Σ_t Φ_t / 3.
+  D̄_t: teslim edilenlerin ortalama uçtan uca gecikmesi (π3'e bölünür: 1 = süre sınırında); U_t: topoloji t'nin
+  sensörlerinin ısınma sonrası harcadığı enerji / başlangıç enerjileri toplamı. Ağırlıklar yol maliyetiyle tutarlı:
+  γ_t = π6_t, α_t = β_t = (1 − π6_t)/2 (config metrics.phi.weights = from_pi6). Teslim yoksa D̄ ve Φ tanımsız (NaN).
 - §5.19 runs.csv: bir koşu bir satır; sütunlar koşu tanımlayıcıları + ağ kaydı + yukarıdaki metrikler (sınıf soneki).
   Dosya varsa sütun birleşimiyle eklenir. run_id belirlenimcidir (yöntem, seed, yük, mod); `timestamp` ayrı sütundur.
 - §5.19 paket logu (opsiyonel): bir satır bir paket; parquet (pyarrow varsa) yoksa csv.gz (yeni bağımlılık yok).
@@ -98,7 +102,34 @@ def class_metrics(result: SimulationResult, traffic_class: str) -> dict[str, flo
     total_air = sum(air.values())
     m["airtime_share"] = air.get(traffic_class, 0.0) / total_air if total_air > 0 else math.nan
     m["airtime_s"] = air.get(traffic_class, 0.0)
+    # §5.13 Φ_t
+    if cfg.metrics["phi"]["weights"] != "from_pi6":
+        raise ValueError("metrics.phi.weights: yalnızca from_pi6 destekleniyor (§5.13)")
+    m.update(phi_terms(m["lat_mean_ms"], pol.max_delay_ms, m["pdr"], topology_utilization(result, topology),
+                       pol.energy_weight))
     return m
+
+
+def phi_terms(lat_mean_ms: float, max_delay_ms: float, pdr: float, utilization: float, pi6: float) -> dict[str, float]:
+    """§5.13 Φ_t ve bileşenleri: α = β = (1 − π6)/2, γ = π6; D̄/π3, 1 − PDR, U."""
+    alpha = beta = (1.0 - pi6) / 2.0
+    gamma = pi6
+    d_norm = lat_mean_ms / max_delay_ms
+    return {
+        "phi_delay_norm": d_norm,
+        "phi_loss": 1.0 - pdr,
+        "phi_U": utilization,
+        "phi": alpha * d_norm + beta * (1.0 - pdr) + gamma * utilization,
+    }
+
+
+def topology_utilization(result: SimulationResult, topology) -> float:
+    """§5.13 U_t: topoloji sensörlerinin ısınma sonrası tüketimi / başlangıç enerjileri toplamı."""
+    net = result.pn.net
+    members = result.pn.part.members[topology]
+    used = result.energy_consumed_after_warm_up_J()
+    total0 = sum(net.nodes[v].initial_energy_J for v in members)
+    return sum(used[v] for v in members) / total0 if total0 > 0 else math.nan
 
 
 def qos_window_ratio(pkts: list[PacketState], t0: float, window_s: float, min_pdr: float, max_loss: float) -> float:
@@ -183,9 +214,13 @@ def runs_row(result: SimulationResult, experiment: str = "") -> dict[str, Any]:
         **{k: v for k, v in result.trace.to_record().items() if k != "load_multiplier"},
         **network_metrics(result),
     }
+    phis = []
     for cls in result.trace.classes:
-        for k, v in class_metrics(result, cls).items():
+        cm = class_metrics(result, cls)
+        phis.append(cm["phi"])
+        for k, v in cm.items():
             row[f"{k}_{cls}"] = v
+    row["phi"] = float(np.mean(phis))   # §5.13 Φ = Σ_t Φ_t / 3 (bir sınıfta teslim yoksa NaN)
     return row
 
 
