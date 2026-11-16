@@ -42,8 +42,12 @@ def _theta(model: TorchFuzzyEngine) -> list[torch.Tensor]:
 
 def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored", lam: float = 1e-2,
           max_epochs: int = 200, patience: int = 20, optimizer: str = "adam", lr: float = 0.01,
-          sigma_min: float = 1e-3, seed: int = 0) -> TrainResult:
-    """§5.16 kaybıyla eğitim; uzman parametrelerinden başlar."""
+          sigma_min: float = 1e-3, seed: int = 0, batch_size: int | None = None) -> TrainResult:
+    """§5.16 kaybıyla eğitim; uzman parametrelerinden başlar.
+
+    batch_size None: tam yığın (belirlenimci). Verilirse her epoch'ta `seed` ile karıştırılan mini yığınlar (E9 tekrarları
+    farklı karıştırma seed'iyle koşulur); düzenlileştirme terimi her mini yığına aynen eklenir.
+    """
     if reg_mode not in REG_MODES:
         raise ValueError(f"reg_mode {reg_mode!r}: {REG_MODES}")
     torch.manual_seed(seed)
@@ -60,16 +64,22 @@ def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored",
     best = (float("inf"), copy.deepcopy(model.state_dict()), 0)
     history: list[tuple[int, float, float]] = []
     since_best = 0
+    gen = torch.Generator().manual_seed(seed)
+    n = len(yt)
     for epoch in range(1, max_epochs + 1):
-        opt.zero_grad()
-        f = model(Xt)["f"]
-        loss = 0.5 * torch.mean((yt - f) ** 2)
-        if reg_mode == "anchored":
-            loss = loss + 0.5 * lam * sum(((a - b) ** 2).sum() for a, b in zip(_theta(model), theta0))
-        elif reg_mode == "zero_l2":
-            loss = loss + 0.5 * lam * sum((a ** 2).sum() for a in _theta(model))
-        loss.backward()
-        opt.step()
+        order = torch.randperm(n, generator=gen) if batch_size else torch.arange(n)
+        step = batch_size or n
+        for start in range(0, n, step):
+            idx = order[start:start + step]
+            opt.zero_grad()
+            f = model(Xt[idx])["f"]
+            loss = 0.5 * torch.mean((yt[idx] - f) ** 2)
+            if reg_mode == "anchored":
+                loss = loss + 0.5 * lam * sum(((a - b) ** 2).sum() for a, b in zip(_theta(model), theta0))
+            elif reg_mode == "zero_l2":
+                loss = loss + 0.5 * lam * sum((a ** 2).sum() for a in _theta(model))
+            loss.backward()
+            opt.step()
         if sched is not None:
             sched.step()
         with torch.no_grad():
