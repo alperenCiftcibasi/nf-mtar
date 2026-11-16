@@ -22,7 +22,8 @@ run:                                     # §5.19 genel düzen
     format: parquet                      # §5.19
 
 simulation:                              # §3, §5.10
-  duration_s: 600.0                      # §5.19 E1 simülasyon süresi
+  duration_s: 600.0                      # §5.19 E1 simülasyon süresi (üretim bu anda durur)
+  drain_s: 5.0                           # §5.10a üretim durduktan sonra yoldaki paketlerin tamamlanma süresi; kalanlar in_flight_at_end
   event_queue: heapq                     # §3 (heapq | simpy) — kendi olay kuyruğumuz
   reproducible: true                     # §3 her koşu seed ile tekrarlanabilir (numpy Generator, networkx, torch)
 
@@ -164,6 +165,9 @@ policy:                                  # §5.7 Tablo 1 (π7 güvenlik, π8 yed
     route_update_s: 30                   # π11
     qos_monitor_ms: 10000                # π12
   qos_satisfaction_thresholds: [max_delay_ms, min_throughput_pct, loss_tolerance_pct]  # §5.7 Denk. 4 yerine ölçülen memnuniyet oranı (π3/π4/π5)
+  plain:                                 # §5.12 B1-plain: politika yok, bütün sınıflar aynı (macMinBE 3 ve AIFS 0 radio.csma.plain_be / BackoffPolicy'de)
+    buffer_packets: 8                    # §5.12 tek FIFO kuyruk kapasitesi (Tablo 1'in orta değeri)
+    retransmit_limit: 3                  # §5.12 802.15.4 macMaxFrameRetries varsayılanı (π10'un bağlandığı parametre)
 
 router:                                  # §5.9 yol seçimi
   # cost(u,v) = λ1·E_hop(d)/E_hop(R) + λ2·(-log PRR)/L_max + λ3·depletion(u); tüm terimler [0,1]

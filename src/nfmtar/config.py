@@ -65,8 +65,13 @@ class SimulationConfig:
     """Ayrık olay simülasyonu ayarları (§3, §5.10)."""
 
     duration_s: float
+    drain_s: float          # §5.10a üretim durduktan sonra yoldaki paketlerin tamamlanma süresi
     event_queue: str
     reproducible: bool
+
+    def __post_init__(self) -> None:
+        if self.duration_s <= 0 or self.drain_s < 0:
+            raise ConfigError("simulation.duration_s pozitif, drain_s negatif olmayan olmalı (§5.10a)")
 
 
 @dataclass(frozen=True)
@@ -361,12 +366,28 @@ class TopologyPolicy:
 
 
 @dataclass(frozen=True)
+class PlainPolicy:
+    """B1-plain (§5.12): politika yok; bütün sınıflar için tek FIFO kuyruk kapasitesi ve yeniden deneme limiti.
+
+    macMinBE 3 ve AIFS 0 radio.csma.plain_be ve BackoffPolicy(vsdn_policy=False) ile uygulanır (§5.5).
+    """
+
+    buffer_packets: int
+    retransmit_limit: int
+
+    def __post_init__(self) -> None:
+        if self.buffer_packets <= 0 or self.retransmit_limit < 0:
+            raise ConfigError("policy.plain: buffer_packets pozitif, retransmit_limit negatif olmayan olmalı (§5.12)")
+
+
+@dataclass(frozen=True)
 class PolicyConfig:
-    """Üç topolojinin Tablo 1 politikaları ve QoS memnuniyet eşik listesi (§5.7)."""
+    """Üç topolojinin Tablo 1 politikaları, B1-plain satırı ve QoS memnuniyet eşik listesi (§5.7, §5.12)."""
 
     E: TopologyPolicy
     L: TopologyPolicy
     R: TopologyPolicy
+    plain: PlainPolicy
     qos_satisfaction_thresholds: tuple[str, ...]
 
     def for_topology(self, topology: Any) -> TopologyPolicy:

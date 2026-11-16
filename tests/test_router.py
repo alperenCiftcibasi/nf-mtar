@@ -343,3 +343,34 @@ def test_real_network_candidates_and_plans(cfg, radio):
                 path = plan.full_path(v)
                 assert path[0] == v and path[-1] == net.edge_router_ids[t]
                 assert all(net.graph.has_edge(a, b) for a, b in zip(path, path[1:]))
+
+
+# ----------------------------------------------------------------------------- atlama atlama iletim tabloları (§5.10a)
+
+
+def test_forward_tables_reproduce_full_path_strict_and_shared(cfg, radio):
+    """§5.10a: her üyeden `forward` ile atlama atlama ilerlemek (root'a, sonra edge'e) full_path ile aynı yolu verir;
+    shared modda yabancı aktarıcıların da tablo girdisi vardır."""
+    pn = build_partitioned_network(cfg, seed=1)
+    net, part = pn.net, pn.part
+    for mode in ("strict", "shared"):
+        for method in ("B1", "B2", "NF-MTAR"):
+            r = Router.for_method(cfg, radio, method, relay_mode=mode)
+            for t in TOPOLOGY_ORDER:
+                reach = r.reach_from_edge(net, part, t)
+                plan = r.plan_routes(net, part, t, static_root(net, reach), reach)
+                for v in part.members[t]:
+                    walked, u, to_root = [v], v, v != plan.root and v in plan.to_root
+                    while u != plan.edge_router:
+                        if to_root and u == plan.root:
+                            to_root = False
+                        u = plan.forward(u, to_root)
+                        assert u is not None
+                        walked.append(u)
+                        assert len(walked) <= len(net.nodes)
+                    assert tuple(walked) == plan.full_path(v), (mode, method, t, v)
+                relays = relays_on_paths(plan.full_path(v) for v in part.members[t])
+                assert all(u in plan.next_hop_to_edge for u in relays)
+                if mode == "shared":
+                    assert all(u in plan.next_hop_to_root for u in relays if u != plan.root and u not in plan.root_to_edge)
+    assert plan.forward(plan.edge_router, to_root=False) is None

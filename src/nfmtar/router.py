@@ -30,6 +30,9 @@ Uygulanan kararlar:
   ama edge router'a yolu olan sensör root'u atlar, doğrudan edge router yolunu kullanır (`RoutePlan.bypass`); bütün
   yöntemlerde aynı kural, oranı kayda yazılır. Ne root'a ne edge router'a yolu olan canlı sensör `RoutePlan.no_route`
   kümesindedir ve yolu yoktur (M5'te paket kaybı sebebi `NO_ROUTE`).
+- §5.10a atlama atlama iletim: simülasyon paketi tam yolla değil, her düğümde O ANKİ plandan sonraki atlamayı sorarak
+  iletir (`RoutePlan.forward`). Tablolar yönlendirme çizgesindeki bütün düğümleri kapsar (shared modda yabancı
+  aktarıcılar dahil); aynı plan içinde tabloyu izlemek `full_path` ile aynı yolu verir (Dijkstra ağacı).
 - §5.9 relay_mode: strict (varsayılan, makaleye sadık) — çizge = topolojinin CANLI sensörleri + kendi edge router'ı.
   shared — çizge = fiziksel ağın bütün canlı sensörleri (diğer topolojilerin düğümleri aktarıcı olabilir) + kendi
   edge router'ı. Edge router'lar hiçbir modda aktarıcı değildir: başka topolojilerin edge router'ları çizgeye
@@ -43,7 +46,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
 import networkx as nx
@@ -123,6 +126,16 @@ class RoutePlan:
     to_root_cost: dict[int, float]
     bypass: dict[int, tuple[int, ...]]
     no_route: frozenset[int]
+    # Atlama atlama iletim tabloları (§5.10a): yönlendirme çizgesindeki HER düğüm için (shared modda yabancı aktarıcılar
+    # dahil) root'a / edge router'a giden sonraki düğüm. Dijkstra yolları bir ağaç oluşturduğundan (networkx yolları
+    # öncül zinciriyle kurar) tabloyu izlemek full_path ile aynı yolu verir.
+    next_hop_to_root: dict[int, int] = field(default_factory=dict)
+    next_hop_to_edge: dict[int, int] = field(default_factory=dict)
+
+    def forward(self, u: int, to_root: bool) -> int | None:
+        """u'daki paketin sonraki atlaması: root'a doğru (aşama 1) veya edge router'a doğru (aşama 2); yol yoksa None (§5.10a)."""
+        table = self.next_hop_to_root if to_root else self.next_hop_to_edge
+        return table.get(u)
 
     def route_status(self, v: int) -> str:
         """VIA_ROOT, BYPASS veya NO_ROUTE (§5.4; M5 paket logu)."""
@@ -340,6 +353,8 @@ class Router:
             to_root_cost=plan_cost,
             bypass=bypass,
             no_route=frozenset(no_route),
+            next_hop_to_root={u: p[1] for u, p in to_root.items() if len(p) > 1},
+            next_hop_to_edge={u: p[1] for u, p in reach.paths.items() if len(p) > 1},
         )
 
     def plan_all(self, net: PhysicalNetwork, part: Partition, roots: dict[Any, int]) -> dict[Topology, RoutePlan]:
