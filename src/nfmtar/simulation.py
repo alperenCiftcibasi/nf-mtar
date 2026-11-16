@@ -367,6 +367,8 @@ class Simulation:
         self.root_policy: RootPolicy = root_policy or StaticRootPolicy()
         self.kill_roots_at_s: float | None = None   # E5 kök arıza enjeksiyonu (§5.19); run_simulation ayarlar
         self.root_failures: list[tuple[float, str, int]] = []
+        self.snapshot_interval_s: float | None = None   # §5.16 eğitim verisi: her K saniyede ağ durumu kaydı
+        self.snapshot_hook: Callable[["Simulation"], None] | None = None
         self.seed = trace.seed
         self.duration_s = trace.duration_s
         self.drain_s = cfg.simulation.drain_s
@@ -434,6 +436,8 @@ class Simulation:
         self._push(self.warm_up_s, EV_CONTROL, "warm_up_end")
         if self.kill_roots_at_s is not None:
             self._push(self.kill_roots_at_s, EV_CONTROL, "kill_roots")
+        if self.snapshot_interval_s and self.snapshot_hook is not None:
+            self._push(self.snapshot_interval_s, EV_CONTROL, "snapshot")
         self._push(self.end_s, EV_CONTROL, "end")
 
         heap = self._heap
@@ -457,6 +461,10 @@ class Simulation:
             elif kind == "warm_up_end":
                 self.airtime_warm_up_s = dict(self.channel.airtime_s_by_class)
                 self.energy_warm_up_J = {v: self.net.nodes[v].energy_J for v in self.net.sensor_ids}
+            elif kind == "snapshot":
+                self.snapshot_hook(self)
+                if self.now + self.snapshot_interval_s < self.duration_s:
+                    self._push(self.now + self.snapshot_interval_s, EV_CONTROL, "snapshot")
             elif kind == "kill_roots":
                 self._kill_roots()
             elif kind == "end":
