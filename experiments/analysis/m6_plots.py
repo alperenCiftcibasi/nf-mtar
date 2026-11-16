@@ -84,7 +84,7 @@ def grouped_bars(table: pd.DataFrame, metric: str, ylabel: str, out: Path, p95: 
     axes[0].set_ylabel(ylabel)
     if metric == "pdr":
         axes[0].set_ylim(0, 1.05)
-    axes[0].legend(fontsize=8, loc="lower left" if metric == "pdr" else "upper left")
+    (axes[-1] if metric == "pdr" else axes[0]).legend(fontsize=8, loc="upper right" if metric == "pdr" else "upper left")
     fig.suptitle(f"{ylabel} by traffic class (mean over 5 seeds, error bar = std)", fontsize=10)
     fig.tight_layout()
     fig.savefig(out, dpi=150)
