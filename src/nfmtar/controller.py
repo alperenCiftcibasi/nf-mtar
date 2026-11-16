@@ -56,6 +56,11 @@ class DynamicRootPolicy:
 
     @classmethod
     def for_method(cls, cfg: Config, method: str, radio, net, params=None) -> "DynamicRootPolicy":
+        if params is None and cfg.engine["methods"][method]["scoring"] == "fuzzy_trained":
+            from nfmtar.config import PROJECT_ROOT
+            from nfmtar.engine.fuzzy import FuzzyParams
+
+            params = FuzzyParams.load_json(PROJECT_ROOT / cfg.engine["trained_model"])   # NF-MTAR (§5.16)
         strategy = strategy_for_method(cfg, method, params)
         if not isinstance(strategy, FuzzyStrategy):
             raise ValueError(f"{method}: dinamik root bulanık puanlama ister (§5.12)")

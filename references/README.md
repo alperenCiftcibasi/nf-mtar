@@ -13,7 +13,7 @@ Paper values used for comparison are transcribed to `configs/paper_reference.yam
 
 [5] D. S. J. De Couto, D. Aguayo, J. Bicket, and R. Morris, "A high-throughput path metric for multi-hop wireless routing," in *Proc. 9th Annu. Int. Conf. Mobile Computing and Networking (MobiCom)*, 2003.
 
-[6] Memarian *et al.*, "TSFIS-GWO ...," *Applied Soft Computing*, vol. 155, art. no. 111427, 2024, doi: 10.1016/j.asoc.2024.111427. (TODO: full author list and title to be completed from the DOI.)
+[6] S. Memarian *et al.*, "TSFIS-GWO: Metaheuristic-driven Takagi-Sugeno fuzzy system for adaptive real-time routing in WBANs," *Applied Soft Computing*, vol. 155, art. no. 111427, 2024, doi: 10.1016/j.asoc.2024.111427.
 
 [7] J.-S. R. Jang, "ANFIS: Adaptive-network-based fuzzy inference system," *IEEE Trans. Syst., Man, Cybern.*, vol. 23, no. 3, pp. 665–685, 1993.
 
