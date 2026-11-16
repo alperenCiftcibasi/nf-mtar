@@ -12,8 +12,12 @@
 | E5-lite: forced root failure at t = 300 s, B1 vs B3, 3 seeds | done (`results/tables/e5_lite.csv`) |
 | E9-lite (contribution K1, small scale): §5.16 oracle, training data (6 seeds, split by seed), trainer with anchored / zero_l2 / none, §5.20 interpretability measures | done (`results/tables/e9_lite.csv`) |
 | M12: paired statistics, figures, paper comparison (`experiments/analysis/make_all.py`) | done (code; waits for full experiment runs) |
-| M8 at full scale (λ sweep, 5 training repeats) and NF-MTAR network runs | **missing** |
-| Full experiments E1–E5, E8, E9 | **missing** |
+| E1 (partial): B1, B2, B3 × loads {0.25, 0.5} × 10 seeds; paired statistics (`E1_stats.csv`), B3 vs B1/B2 (`e1_b3_comparison.csv`), E1 figures | done |
+| E9 λ sweep (small scale): anchored / zero_l2 λ ∈ {1e-3, 1e-2, 1e-1}, none; 2 repeats (`e9_lambda.csv`, `e9_pareto.png`) | done |
+| Unit tests for oracle, trainer and interpretability; references (IEEE) in `references/README.md` | done |
+| M8 at full scale (5 training repeats, more data) and NF-MTAR network runs | **missing** |
+| Full experiments: E1 with 30 seeds, load 1, B1-plain and NF-MTAR; E2, E3 (packet logs), E4, E5 (30 seeds), E8, E9 network part | **missing** |
+| Report and presentation PDFs | added at submission (`report/`, `presentation/`) |
 
 
 ## Project Title
