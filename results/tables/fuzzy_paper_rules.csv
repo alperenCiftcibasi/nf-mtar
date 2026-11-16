@@ -1,0 +1,4 @@
+paper_rule,terms,paper_y,our_rule_index,our_y,diff_y,f_at_centers,f_norm_at_centers,confidence_at_centers,top_rule_is_same,our_rule_text
+1,VeryHigh High Low High High,0.9500,701,0.7975,-0.1525,0.7796,0.7551,0.6587,True,R701: IF x1 (demand) is VeryHigh AND x2 (utilization) is High AND x3 (depletion) is Low AND x4 (link_quality) is High AND x5 (connectivity) is High THEN 0.80
+47,High Medium Medium High Medium,0.7800,526,0.6963,-0.0837,0.6830,0.6478,0.5875,True,R526: IF x1 (demand) is High AND x2 (utilization) is Medium AND x3 (depletion) is Medium AND x4 (link_quality) is High AND x5 (connectivity) is Medium THEN 0.70
+98,Low VeryHigh VeryHigh Low Low,0.1500,294,0.1338,-0.0162,0.1563,0.0625,0.6974,True,R294: IF x1 (demand) is Low AND x2 (utilization) is VeryHigh AND x3 (depletion) is VeryHigh AND x4 (link_quality) is Low AND x5 (connectivity) is Low THEN 0.13

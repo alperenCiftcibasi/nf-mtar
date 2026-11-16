@@ -251,7 +251,11 @@ fuzzy:                                   # §5.14 bulanık çıkarım motoru
     confidence: max_over_sum             # §5.14 Denk. 13b max_k w_k / Σ w_k ∈ [1/750, 1]
   implementation: numpy_vectorized       # §5.14 750×5 kural-terim indeks tablosu, toplu değerlendirme
   calibration_check:                     # §5.14 test: makale Kural 1/47/98 çıktıları; fark log'a yazılır, test başarısız olmaz
-    expected_outputs: {1: 0.95, 47: 0.78, 98: 0.15}
+    paper_rules:                         # §5.14 makale "Examples of selected rules"; terimler x1..x5 (Good/Poor = High/Low)
+      1:  {terms: [VeryHigh, High, Low, High, High], y: 0.95}
+      47: {terms: [High, Medium, Medium, High, Medium], y: 0.78}
+      98: {terms: [Low, VeryHigh, VeryHigh, Low, Low], y: 0.15}
+    table: results/tables/fuzzy_paper_rules.csv
 
 oracle:                                  # §5.16 kâhin etiketleri (çevrimdışı eğitim hedefi)
   weights: {delivery: 0.4, latency: 0.3, resilience: 0.3}  # §5.16 skor = 0.4·teslim + 0.3·(1 - gecikme_norm) + 0.3·dayanıklılık_norm

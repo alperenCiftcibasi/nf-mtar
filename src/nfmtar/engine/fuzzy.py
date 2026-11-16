@@ -355,6 +355,32 @@ class FuzzyEngine:
         return np.array([self.params.centers[i][j] for i, j in enumerate(terms)])
 
 
+def paper_rule_report(engine: "FuzzyEngine", paper_rules: Mapping[Any, Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """§5.14 kalibrasyon raporu: makalenin örnek kuralları (terim adları x1..x5, makale sonucu y) için bizim kuralımızın
+    uzman sonucu y_k ve girdiler terim merkezlerindeyken motor çıkışı. Tanı amaçlı; hiçbir şey doğrulanmaz."""
+    rows = []
+    for rule_no, spec in paper_rules.items():
+        names = list(spec["terms"])
+        terms = [TERM_LABELS[n].index(name) for n, name in zip(engine.spec.n_terms, names)]
+        k = engine.rule_index(terms)
+        out = engine.evaluate(engine.term_centers_input(terms))
+        y_paper, y_ours = float(spec["y"]), float(engine.params.y[k])
+        rows.append({
+            "paper_rule": int(rule_no),
+            "terms": " ".join(names),
+            "paper_y": y_paper,
+            "our_rule_index": k,
+            "our_y": y_ours,
+            "diff_y": y_ours - y_paper,
+            "f_at_centers": out.f,
+            "f_norm_at_centers": out.score,
+            "confidence_at_centers": out.confidence,
+            "top_rule_is_same": out.top_rule_index == k,
+            "our_rule_text": engine.rule_to_text(k),
+        })
+    return rows
+
+
 # --------------------------------------------------------------------------- #
 # Girdi çıkarımı ve sabit normalizasyon (§5.14 girdi tablosu)
 # --------------------------------------------------------------------------- #

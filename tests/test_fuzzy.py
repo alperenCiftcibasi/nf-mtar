@@ -2,11 +2,12 @@
 
 §5.14 test listesi: üyelikler [0,1], merkezde 1, komşular 0,5'te kesişir; monotonluk (x3 artınca skor artmaz, x4 artınca
 azalmaz); güven ∈ [1/750, 1]; NumPy ↔ PyTorch eşdeğerliği; ∂f/∂y_k = w_k/Σw (autograd vs elle).
-Not: makale Kural 1/47/98 kalibrasyon raporu burada YOK — o kuralların girdi terimleri repoda kayıtlı değil (bkz. M7 notu).
+Kalibrasyon raporu (makale Kural 1/47/98): fark log'a yazılır, test başarısız olmaz (§5.14).
 """
 
 from __future__ import annotations
 
+import logging
 import math
 
 import numpy as np
@@ -350,3 +351,20 @@ def test_strategies_for_methods(cfg):
     assert trained.dynamic_root() and trained.name == "NF-MTAR" and trained.score(nf).score != out.score
     with pytest.raises(KeyError, match="bilinmeyen"):
         strategy_for_method(cfg, "RPL")
+
+
+# ----------------------------------------------------------------------------- makale kuralları kalibrasyon raporu (§5.14)
+
+
+def test_paper_rules_calibration_report_logged(engine, cfg, caplog):
+    """§5.14: makalenin Kural 1/47/98 terimleri -> bizim y_k ve terim merkezlerinde çıkış; fark log'a, test başarısız olmaz.
+    Yalnızca raporun yapısı doğrulanır (kural bulundu, değerler aralıkta)."""
+    from nfmtar.engine.fuzzy import paper_rule_report
+
+    rows = paper_rule_report(engine, cfg.fuzzy["calibration_check"]["paper_rules"])
+    assert [r["paper_rule"] for r in rows] == [1, 47, 98]
+    with caplog.at_level(logging.INFO):
+        for r in rows:
+            assert 0.1 - 1e-12 <= r["our_y"] <= 1.0 + 1e-12 and 0.0 <= r["f_norm_at_centers"] <= 1.0
+            logging.getLogger(__name__).info("paper rule %d: paper %.2f, ours %.3f (diff %+.3f); f at centers %.3f",
+                                             r["paper_rule"], r["paper_y"], r["our_y"], r["diff_y"], r["f_at_centers"])
