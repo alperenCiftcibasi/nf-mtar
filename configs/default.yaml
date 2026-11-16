@@ -93,9 +93,12 @@ radio:                                   # §5.5 IEEE 802.15.4
   delay_components: [queue, backoff, transmission, processing]  # §5.5, §5.13 paket logunda ayrı tutulur
   prr:                                   # §5.5 mesafeye bağlı lojistik PRR (menzile yaklaştıkça düşer)
     model: logistic                      # PRR(d) = prr_max / (1 + exp(k * (d - d_mid)))
-    prr_max: 0.99                        # (varsayılan; CLAUDE.md'de sayı yok)
-    d_mid_m: 42.0                        # (varsayılan) PRR'nin yarıya düştüğü mesafe
-    steepness_per_m: 0.4                 # (varsayılan) k
+    # §5.18a (M6): PRR(d) = 1/(1+exp((d - d50)/s)), d50 = 0,9·R = 45 m, s = 3,5 m -> k = 1/s;
+    # PRR 30/35/40/45/50 m ≈ 0,99/0,95/0,81/0,50/0,19 (COOJA UDGM benzeri: menzil içi neredeyse kayıpsız).
+    # M5'teki eski eğri (prr_max 0,99, d_mid 42, k 0,4) duyarlılık noktası: experiments.sensitivity.prr_legacy_m5
+    prr_max: 1.0                         # §5.18a
+    d_mid_m: 45.0                        # §5.18a d50 = 0,9·R
+    steepness_per_m: 0.2857142857142857  # §5.18a k = 1/s, s = 3,5 m
     prr_min: 0.05                        # §5.9 L_max = -log(PRR_min); ayrıca PRR tabanı
 
 energy:                                  # §5.5 birinci dereceden radyo modeli
@@ -322,6 +325,11 @@ experiments:                             # §5.19
     summary_table: results/tables/e0_connectivity_summary.csv
     figure: results/figures/e0_topology_uniform_vs_region.png   # yan yana, aynı seed
     optional_after_router: strict_vs_shared_r_pdr_10_seeds      # §5.19 opsiyonel (router.py sonrası)
+  sensitivity:                           # duyarlılık noktaları: load_config(overrides=...) ile uygulanan override kümeleri
+    prr_legacy_m5:                       # §5.18a öncesi (M5) PRR eğrisi: atlama başına PRR ~0,64 (B1), FND 90-130 s
+      radio.prr.prr_max: 0.99
+      radio.prr.d_mid_m: 42.0
+      radio.prr.steepness_per_m: 0.4
   mac_aifs_calibration:                  # §5.5 AIFS kalibrasyonu (experiments/calibration/mac_aifs.py): doygun üç gönderici,
                                          #      sınıf başına bir, hepsi taşıyıcı algılama menzilinde; hedef = π1 payları
     duration_s: 20.0                     # §5.5 koşu süresi

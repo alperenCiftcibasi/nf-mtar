@@ -60,7 +60,10 @@ def brute_force_best(g: nx.DiGraph, source: int, target: int):
 
 @pytest.fixture(scope="module")
 def cfg():
-    return load_config()
+    """Elle kurulmuş senaryoların beklenen sayıları (49 m'de PRR 0,057, 50 m'de PRR_min'e kırpma, bu kuyruğa bağlı yol
+    seçimleri) M4'teki PRR eğrisiyle hesaplandı; router mantığı eğriden bağımsız olduğu için testler o eğriye sabitlenir
+    (§5.18a: eski eğri config'te duyarlılık noktası experiments.sensitivity.prr_legacy_m5)."""
+    return load_config(overrides=load_config().experiments["sensitivity"]["prr_legacy_m5"])
 
 
 @pytest.fixture(scope="module")

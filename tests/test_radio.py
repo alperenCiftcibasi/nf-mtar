@@ -92,15 +92,31 @@ def test_transmission_time_1024B_single_hop_at_least_32_8_ms(radio):
 
 
 def test_prr_logistic_monotone_and_clipped(radio, cfg):
-    """§5.5: PRR mesafeyle azalır; d_mid'de prr_max/2; [prr_min, prr_max] içinde; menzilde tabana iner."""
+    """§5.5: PRR mesafeyle azalır; d_mid'de prr_max/2; [prr_min, prr_max] içinde; çok uzakta tabana iner.
+    §5.18a eğrisi: d50 = 0,9·R, PRR(0,6·R) >= 0,98; 30/35/40/45/50 m ≈ 0,99/0,95/0,81/0,50/0,19."""
     c = cfg.radio.prr
-    assert math.isclose(radio.prr(0.0), c.prr_max, rel_tol=1e-6)
+    assert math.isclose(radio.prr(0.0), c.prr_max, rel_tol=1e-5)
     assert math.isclose(radio.prr(c.d_mid_m), c.prr_max / 2)
     ds = np.linspace(0, 60, 61)
     values = [radio.prr(d) for d in ds]
     assert all(a >= b for a, b in zip(values, values[1:]))
     assert all(c.prr_min <= v <= c.prr_max for v in values)
-    assert radio.prr(50.0) == c.prr_min and radio.prr(1e9) == c.prr_min
+    assert radio.prr(1e9) == c.prr_min
+    r = cfg.network.radio_range_m
+    assert math.isclose(c.d_mid_m, 0.9 * r) and radio.prr(0.6 * r) >= 0.98
+    for d, expected in ((30, 0.99), (35, 0.95), (40, 0.81), (45, 0.50), (50, 0.19)):
+        assert abs(radio.prr(d) - expected) < 0.006, (d, radio.prr(d))
+
+
+def test_prr_legacy_m5_sensitivity_point():
+    """§5.18a: eski (M5) eğri config'te duyarlılık noktası olarak kalır ve override ile uygulanır."""
+    from nfmtar.config import load_config
+
+    legacy = load_config().experiments["sensitivity"]["prr_legacy_m5"]
+    c = load_config(overrides=legacy).radio.prr
+    assert (c.prr_max, c.d_mid_m, c.steepness_per_m) == (0.99, 42.0, 0.4)
+    old = RadioModel.from_config(load_config(overrides=legacy))
+    assert old.prr(50.0) == c.prr_min
 
 
 def test_first_order_energy_model(radio):
