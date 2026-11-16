@@ -4,7 +4,7 @@ Bu dosya, projenin bağlamını ve alınmış bütün tasarım kararlarını iç
 Kod yazarken bu kararlara uy; bir karardan sapman gerekirse önce sor.
 "BEKLEMEDE" işaretli bölümler henüz netleşmedi; o kısımları uydurma, sor.
 
-Son güncelleme: 16 Kasım 2026
+Son güncelleme: 16 Kasım 2026 (K1 seçildi)
 
 ---
 
@@ -343,7 +343,13 @@ class ScoringStrategy(Protocol):
   Not: normalize throughput = PDR ve kayıp = 1 − PDR olduğundan π4 ile π5 aynı büyüklüğün iki eşiğidir ve her
   sınıfta bağlayıcı olan π5'tir (E: PDR ≥ %99,9; L: ≥ %99; R: ≥ %95). Makaledeki tutarsızlık; raporda belirtilecek.
 - Kayıp nedenlerine göre düşen paket sayıları (§5.10a); bypass edilen paket oranı (§5.4)
-- Φ (makale Denk. 6'nın düzeltilmiş hali, α/β/γ config'den) — değerlendirme metriği (M6)
+- Φ (makale Denk. 6'nın düzeltilmiş hali; küçük = iyi), ısınma sonrası, sınıf başına:
+  Φ_t = α_t · D̄_t / π3_t  +  β_t · (1 − PDR_t)  +  γ_t · U_t ;  Φ = Σ_t Φ_t / 3
+  D̄_t ortalama uçtan uca gecikme (teslim edilenler), π3'e bölünerek birimsizleştirilir (1 = süre sınırında);
+  U_t = topoloji t'nin sensörlerinin harcadığı enerji / başlangıç enerjileri toplamı (kaynak kullanımı).
+  Ağırlıklar yol maliyetiyle tutarlı: γ_t = π6_t, α_t = β_t = (1 − π6_t)/2.
+  Makaledeki düzeltilenler: düğüm başına toplam N ile ölçekleniyordu (sınıf ortalaması alındı); D, L, U'nun birimleri
+  farklıydı ve normalizasyonsuz toplanıyordu; α, β, γ verilmemişti.
 - Root değişim sayısı (topoloji başına); root görevi yapmış düğümlerin enerji eğrileri (sıcak nokta analizi)
 - Kopuk düğüm sayısı (bölümleme bağlantısallığı)
 - Karar turu başına çalışma süresi (ms)
@@ -541,14 +547,31 @@ paper_reference.yaml içeriği:
 e1_latency_percentiles, e3_latency_vs_hops, e2_scalability, e8_lifetime, e8_root_energy, e4_packet_size,
 e5_root_failure, training_curves.
 
+### 5.20 Özgün katkı — K1: yorumlanabilirliği koruyan eğitim (SEÇİLDİ, 16 Kasım 2026)
+**Soru:** Makale bulanık sistemin yorumlanabilir olduğunu söylüyor ama geri yayılımdan sonra bunun korunup
+korunmadığını hiç ölçmüyor. Eğitim terimlerin anlamını bozuyor mu, korumanın performans bedeli ne?
+**Koşullar (E9):** reg_mode ∈ {anchored, zero_l2, none}; anchored ve zero_l2 için λ ∈ {1e-4, 1e-3, 1e-2, 1e-1};
+ayrıca B3 (eğitimsiz uzman). Her koşul 5 eğitim tekrarı (farklı başlangıç karıştırma seed'i), aynı veri ve seed bazlı ayrım.
+**Yorumlanabilirlik ölçütleri** (`engine/interpretability.py`):
+- Terim sırası bozulması: komşu merkezlerin sırası bozulan çift sayısı (her girdi için)
+- Kapsama: [0,1] üzerinde max_terim μ(x)'in en küçüğü (1000 nokta); < 0,5 ise boşluk var
+- Ayırt edilebilirlik: komşu terimlerin kesişim yüksekliği (çok yüksek = iki terim aynı anlamda)
+- Sonuç monotonluğu ihlali: tek girdide komşu terimle farklılaşan kural çiftlerinden y_k değişimi uzman
+  yönüne (§5.14 "Yön") ters olanların oranı
+- Uzmandan sapma: ortalama |Δc|, |Δσ|, |Δy|
+**Performans ölçütleri:** doğrulama MSE, Spearman, top-1, pişmanlık (§5.16); ağda E1'in orta yükünde 30 seed
+(her mod için doğrulama pişmanlığına göre seçilen en iyi λ; B3 ve NF-MTAR-anchored ile birlikte).
+**Çıktı:** pareto şekli (x: yorumlanabilirlik ihlali, y: pişmanlık), λ eğrileri, terim şekillerinin
+önce/sonra çizimi (girdi başına), örnek kuralların önce/sonra metni. results/tables/e9_*.csv, results/figures/e9_*.png.
+**Destekleyici:** (K3) girdi ablasyonu — her girdiyi sırayla "don't care" yap (o girdinin bütün terimleri 1),
+çevrimdışı ölçütler + orta yükte 10 seed; (K9) ε ∈ {0, 0.02, 0.05, 0.1, 0.2} ve confidence_gate, orta yükte 10 seed;
+ölçüt root değişim sayısı, PDR, gecikme.
+NF-MTAR ana yöntemi = anchored, λ doğrulama pişmanlığına göre seçilir (seçim kuralı önceden sabit).
+
 ## 6. BEKLEMEDE
 
 - Makale okuması tamamlandı (Parça 1–10); deney ve istatistik kararları §5.19'da.
-- **Özgün katkı seçimi:** öneri — ana katkı K1 "yorumlanabilirliği koruyan eğitim"
-  (reg_mode: anchored vs zero_l2 vs none; λ taraması; ölçütler: pişmanlık, top-1, terim sırası bozulması,
-  E1 ağ metrikleri). Destekleyici ablasyonlar: girdi ablasyonu (her girdiyi sırayla çıkar) ve ε taraması
-  + güven kapısı. Yedek ana katkı: Mamdani (centroid) vs Sugeno (merkez-ortalama).
-  ÖĞRENCİ KARAR VERMEDEN katkı deneylerini kodlama; altyapıyı (bayraklar, reg_mode) hazır tut.
+- (Özgün katkı kararı verildi: §5.20.)
 
 ## 7. Çalışma biçimi
 
