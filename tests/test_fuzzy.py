@@ -368,3 +368,12 @@ def test_paper_rules_calibration_report_logged(engine, cfg, caplog):
             assert 0.1 - 1e-12 <= r["our_y"] <= 1.0 + 1e-12 and 0.0 <= r["f_norm_at_centers"] <= 1.0
             logging.getLogger(__name__).info("paper rule %d: paper %.2f, ours %.3f (diff %+.3f); f at centers %.3f",
                                              r["paper_rule"], r["paper_y"], r["our_y"], r["diff_y"], r["f_at_centers"])
+
+
+def test_predict_f_chunked_matches_evaluate_batch():
+    """Büyük veri için parça parça f (§5.21): evaluate_batch(X).f ile makine hassasiyetinde aynı; boş girdi boş çıktı."""
+    spec = FuzzySpec.from_config(load_config())
+    eng = FuzzyEngine(spec)
+    X = np.random.default_rng(3).random((2501, 5))
+    assert np.allclose(eng.predict_f(X, chunk_size=400), eng.evaluate_batch(X).f, rtol=0, atol=1e-12)
+    assert eng.predict_f(np.zeros((0, 5))).shape == (0,)

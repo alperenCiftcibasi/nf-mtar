@@ -321,6 +321,13 @@ class FuzzyEngine:
         confidence = 1.0 / s                                                 # Denk. 13b: max w / Σ w
         return FuzzyBatchOutput(f_norm, confidence, top, f, w_norm)
 
+    def predict_f(self, X: np.ndarray, chunk_size: int = 20_000) -> np.ndarray:
+        """Büyük veri için yalnızca f (Denk. 12) dizisi; evaluate_batch ile aynı matematik, parça parça
+        (B × 750'lik ateşleme matrisleri bellekte tutulmaz; ör. 280k satırlık doğrulama kümesi, §5.21)."""
+        X = np.atleast_2d(np.asarray(X, dtype=float))
+        return np.concatenate([self.evaluate_batch(X[i:i + chunk_size]).f for i in range(0, len(X), chunk_size)]) \
+            if len(X) else np.zeros(0)
+
     def evaluate(self, features: NodeFeatures | Sequence[float] | np.ndarray) -> FuzzyOutput:
         """Tek düğüm: evaluate(features) -> FuzzyOutput(score, confidence, top_rule_index) (§5.14)."""
         x = features.as_array() if isinstance(features, NodeFeatures) else np.asarray(features, dtype=float)

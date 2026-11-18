@@ -5,6 +5,12 @@ ve none; her koşul 2 tekrar (farklı mini yığın karıştırma seed'i), en ç
 results/figures/e9_pareto.png (x: monotonluk ihlali + sıra bozulması, y: test pişmanlığı; her koşul bir nokta; B3 dahil).
 
 Kullanım: python experiments/e9_lambda.py [--reps 2] [--epochs 300] [--batch 4096] [--workers 4]
+          [--data data/e9_lite.npz] [--lams 1e-3 1e-2 1e-1] [--modes anchored zero_l2 none] [--tag ""]
+          [--patience 20] [--max-train-rows N]
+--tag verilirse çıktılar e9_lambda_<tag>.csv (+ _reps.csv), e9_pareto_<tag>.png ve modeller
+results/models/e9_<tag>_<mod>_<λ>_r<tekrar>.json.
+--max-train-rows: eğitim kümesinden grup bazında alt örnek (büyük veride süre sınırı; doğrulama/test tam kalır).
+§5.21 zengin veriyle E9-lite tekrarı: --data data/e9_rich.npz --lams 1e-2 --tag rich
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ TABLE = PROJECT_ROOT / "results" / "tables" / "e9_lambda.csv"
 FIG = PROJECT_ROOT / "results" / "figures" / "e9_pareto.png"
 
 
-def run_one(task: tuple[str, float, int, int, int]) -> dict:
+def run_one(task: tuple) -> dict:
     import torch
 
     torch.set_num_threads(1)
@@ -34,19 +40,25 @@ def run_one(task: tuple[str, float, int, int, int]) -> dict:
     from nfmtar.engine.interpretability import interpretability_report
     from nfmtar.engine.trainer import evaluate, train
 
-    mode, lam, rep, epochs, batch = task
+    mode, lam, rep, epochs, batch, data, patience, max_train, tag = task
     spec = FuzzySpec.from_config(load_config())
-    d = np.load(DATA)
+    d = np.load(data)
     tr, va, te = (d["split"] == k for k in (0, 1, 2))
     X, y, grp = d["X"], d["y"], d["group"]
+    if max_train and tr.sum() > max_train:                  # grup bazında alt örnek (sabit seed: her koşulda aynı)
+        groups = np.unique(grp[tr])
+        keep = np.random.default_rng(0).choice(groups, size=int(len(groups) * max_train / tr.sum()), replace=False)
+        tr = tr & np.isin(grp, keep)
     if mode == "B3":
         p, ep = FuzzyParams.expert(spec), 0
     else:
         res = train(spec, X[tr], y[tr], X[va], y[va], reg_mode=mode, lam=lam, max_epochs=epochs, seed=rep,
-                    batch_size=batch)
+                    batch_size=batch, patience=patience)
         p, ep = res.params, res.epochs
-    f = FuzzyEngine(spec, p).evaluate_batch(X[te]).f
-    return {"condition": mode, "lambda": lam, "rep": rep, "best_epoch": ep,
+        if tag:
+            p.save_json(PROJECT_ROOT / "results" / "models" / f"e9_{tag}_{mode}_{lam:g}_r{rep}.json")
+    f = FuzzyEngine(spec, p).predict_f(X[te])
+    return {"condition": mode, "lambda": lam, "rep": rep, "best_epoch": ep, "n_train": int(tr.sum()),
             **{f"test_{k}": v for k, v in evaluate(f, y[te], grp[te]).items()}, **interpretability_report(spec, p)}
 
 
@@ -56,12 +68,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--batch", type=int, default=4096)
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--data", default=str(DATA))
+    parser.add_argument("--lams", nargs="+", type=float, default=[1e-3, 1e-2, 1e-1])
+    parser.add_argument("--modes", nargs="+", default=["anchored", "zero_l2", "none"])
+    parser.add_argument("--patience", type=int, default=20)
+    parser.add_argument("--max-train-rows", type=int, default=0)
+    parser.add_argument("--tag", default="")
     args = parser.parse_args(argv)
-    tasks = [("B3", 0.0, 0, 0, 0)]
-    for mode in ("anchored", "zero_l2"):
-        for lam in (1e-3, 1e-2, 1e-1):
-            tasks += [(mode, lam, r, args.epochs, args.batch) for r in range(args.reps)]
-    tasks += [("none", 0.0, r, args.epochs, args.batch) for r in range(args.reps)]
+    data = args.data if Path(args.data).is_absolute() else str(PROJECT_ROOT / args.data)
+    extra = (data, args.patience, args.max_train_rows, args.tag)
+    tasks = [("B3", 0.0, 0, 0, 0, *extra)]
+    for mode in args.modes:
+        for lam in ([0.0] if mode == "none" else args.lams):
+            tasks += [(mode, lam, r, args.epochs, args.batch, *extra) for r in range(args.reps)]
+    table_path = TABLE.with_name(f"e9_lambda_{args.tag}.csv") if args.tag else TABLE
+    fig_path = FIG.with_name(f"e9_pareto_{args.tag}.png") if args.tag else FIG
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         rows = list(pool.map(run_one, tasks))
     raw = pd.DataFrame(rows)
@@ -69,8 +90,9 @@ def main(argv: list[str] | None = None) -> int:
     g = raw.groupby(["condition", "lambda"], sort=False)
     table = g[num].mean().join(g[["test_regret", "test_mse"]].std().add_suffix("_std")).reset_index()
     table.insert(2, "n_reps", g.size().values)
-    TABLE.parent.mkdir(parents=True, exist_ok=True)
-    table.to_csv(TABLE, index=False, float_format="%.5f")
+    table_path.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(table_path, index=False, float_format="%.5f")
+    raw.to_csv(table_path.with_name(table_path.stem + "_reps.csv"), index=False, float_format="%.5f")
     pd.set_option("display.width", 250)
     print(table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
@@ -88,12 +110,12 @@ def main(argv: list[str] | None = None) -> int:
         ax.annotate(label, (x, r["test_regret"]), fontsize=7, xytext=(4, 3), textcoords="offset points")
     ax.set_xlabel("interpretability violation (monotonicity violation + term-order violations)")
     ax.set_ylabel("test regret (oracle best - oracle chosen)")
-    ax.set_title("E9-lite: regret vs interpretability (mean of reps)", fontsize=10)
+    ax.set_title(f"E9{'-' + args.tag if args.tag else '-lite'}: regret vs interpretability (mean of reps)", fontsize=10)
     ax.grid(alpha=0.3)
     fig.tight_layout()
-    FIG.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(FIG, dpi=150)
-    print(f"-> {TABLE}\n-> {FIG}")
+    fig_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(fig_path, dpi=150)
+    print(f"-> {table_path}\n-> {fig_path}")
     return 0
 
 

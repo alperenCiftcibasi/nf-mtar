@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{mode}: best epoch {res.epochs}, val MSE {res.best_val_mse:.5f}", flush=True)
     rows = []
     for name, p in params.items():
-        f = FuzzyEngine(spec, p).evaluate_batch(X[te]).f
+        f = FuzzyEngine(spec, p).predict_f(X[te])
         rows.append({"condition": name, "lambda": 0.0 if name.startswith("B3") or name == "none" else args.lam,
                      "best_epoch": epochs[name], **{f"test_{k}": v for k, v in evaluate(f, y[te], grp[te]).items()},
                      **interpretability_report(spec, p)})

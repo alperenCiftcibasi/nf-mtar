@@ -42,11 +42,13 @@ def _theta(model: TorchFuzzyEngine) -> list[torch.Tensor]:
 
 def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored", lam: float = 1e-2,
           max_epochs: int = 200, patience: int = 20, optimizer: str = "adam", lr: float = 0.01,
-          sigma_min: float = 1e-3, seed: int = 0, batch_size: int | None = None) -> TrainResult:
+          sigma_min: float = 1e-3, seed: int = 0, batch_size: int | None = None,
+          eval_chunk: int = 20_000) -> TrainResult:
     """§5.16 kaybıyla eğitim; uzman parametrelerinden başlar.
 
     batch_size None: tam yığın (belirlenimci). Verilirse her epoch'ta `seed` ile karıştırılan mini yığınlar (E9 tekrarları
     farklı karıştırma seed'iyle koşulur); düzenlileştirme terimi her mini yığına aynen eklenir.
+    Doğrulama MSE'si eval_chunk satırlık parçalarla hesaplanır (aynı değer; büyük doğrulama kümesinde bellek sınırı).
     """
     if reg_mode not in REG_MODES:
         raise ValueError(f"reg_mode {reg_mode!r}: {REG_MODES}")
@@ -83,7 +85,9 @@ def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored",
         if sched is not None:
             sched.step()
         with torch.no_grad():
-            val = float(torch.mean((yv - model(Xv)["f"]) ** 2))
+            sse = sum(float(((yv[i:i + eval_chunk] - model(Xv[i:i + eval_chunk])["f"]) ** 2).sum())
+                      for i in range(0, len(yv), eval_chunk))
+            val = sse / max(len(yv), 1)
         history.append((epoch, float(loss.detach()), val))
         if val < best[0] - 1e-9:
             best = (val, copy.deepcopy(model.state_dict()), epoch)

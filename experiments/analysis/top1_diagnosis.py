@@ -120,10 +120,10 @@ def bounds(tr: pd.DataFrame, va: pd.DataFrame, cfg, max_train: int, seed: int = 
 
     spec = FuzzySpec.from_config(cfg)
     Xv = va[list(FEATURE_NAMES)].to_numpy()
-    add("B3 expert fuzzy", "pointwise", FuzzyEngine(spec, FuzzyParams.expert(spec)).evaluate_batch(Xv).f)
+    add("B3 expert fuzzy", "pointwise", FuzzyEngine(spec, FuzzyParams.expert(spec)).predict_f(Xv))
     trained = FuzzyParams.load_json(PROJECT_ROOT / cfg.engine["trained_model"])
     add(f"trained fuzzy ({Path(cfg.engine['trained_model']).stem})", "pointwise",
-        FuzzyEngine(spec, trained).evaluate_batch(Xv).f)
+        FuzzyEngine(spec, trained).predict_f(Xv))
     for feats, Xt_, Xv_ in (("pointwise", tr[list(FEATURE_NAMES)].to_numpy(), Xv),
                             ("context", context_features(tr), context_features(va))):
         hgb = HistGradientBoostingRegressor(max_iter=400, learning_rate=0.1, max_leaf_nodes=63, random_state=seed)
@@ -143,7 +143,7 @@ def bounds(tr: pd.DataFrame, va: pd.DataFrame, cfg, max_train: int, seed: int = 
 def feature_gap(va: pd.DataFrame, cfg, n_examples: int = 2, seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
     spec = FuzzySpec.from_config(cfg)
     va = va.copy()
-    va["f_B3"] = FuzzyEngine(spec, FuzzyParams.expert(spec)).evaluate_batch(va[list(FEATURE_NAMES)].to_numpy()).f
+    va["f_B3"] = FuzzyEngine(spec, FuzzyParams.expert(spec)).predict_f(va[list(FEATURE_NAMES)].to_numpy())
     g = va.groupby("group")
     best = va.loc[g["y"].idxmax()].set_index("group")
     chosen = va.loc[g["f_B3"].idxmax()].set_index("group")

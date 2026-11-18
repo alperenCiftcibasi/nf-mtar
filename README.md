@@ -18,6 +18,7 @@
 | M8 at full scale (5 training repeats, more data) and NF-MTAR network runs | **missing** |
 | Full experiments: E1 with 30 seeds, load 1, B1-plain and NF-MTAR; E2, E3 (packet logs), E4, E5 (30 seeds), E8, E9 network part | **missing** |
 | Report and presentation PDFs | submitted 16 Nov (`report/report.pdf`, `presentation/presentation.pdf`, repo `aefc282`) |
+| P1 first half (§5.21): rich training data (`data/e9_rich.npz`, 20 seeds × 3 loads × B1/B3, 2 J, 1800 s; `e9_data_summary.csv`), top-1 diagnosis (`top1_*.csv`), E9-lite rerun on rich data at λ = 1e-2 (`e9_lambda_rich.csv`, `e9_rich_vs_lite.csv`) | done |
 | Post-submission plan (CLAUDE.md §5.21): P0 repo + traffic trigger; P1 richer training data, top-1 diagnosis, full E9; P2–P4 full experiments and live demo. Evaluations after 18 Nov use new seeds (11+); seeds 1–10 are the development set | in progress |
 
 
