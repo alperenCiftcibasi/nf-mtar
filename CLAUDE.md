@@ -4,7 +4,7 @@ Bu dosya, projenin bağlamını ve alınmış bütün tasarım kararlarını iç
 Kod yazarken bu kararlara uy; bir karardan sapman gerekirse önce sor.
 "BEKLEMEDE" işaretli bölümler henüz netleşmedi; o kısımları uydurma, sor.
 
-Son güncelleme: 16 Kasım 2026 (K1 seçildi)
+Son güncelleme: 18 Kasım 2026 (teslim sonrası plan, §5.21)
 
 ---
 
@@ -12,7 +12,7 @@ Son güncelleme: 16 Kasım 2026 (K1 seçildi)
 
 - **Ders:** Bulanık Mantık dönem projesi (İstanbul Üniversitesi-Cerrahpaşa, Bilgisayar Mühendisliği)
 - **Referans makale:** M. Shabana Parveen ve P. T. V. Bhuvaneswari, "A neuro-fuzzy multi-topology adaptive routing framework for QoS-aware healthcare IoT communications," *Scientific Reports*, vol. 16, art. 3330, 2026. doi: 10.1038/s41598-025-33235-9
-- **Teslim:** ertelendi (yeni tarih öğrenciden alınacak). Classroom'a rapor, sunum, GitHub linki.
+- **Teslim:** belgeler 16 Kasım'da teslim edildi; sunum ve sözlü savunma sonra (tarih belli değil). §5.21.
 - **Puanlama:** Sunum 20, Yeniden gerçekleştirme 30, Özgün katkı 30, Rapor + GitHub 20.
 - **Önemli kurallar (yönergeden):**
   - Git commit geçmişi geliştirme sürecini göstermeli; küçük ve anlamlı commit'ler at.
@@ -220,7 +220,7 @@ Sınıf oranları config'den (varsayılan E/L/R = 0.3/0.4/0.3).
 | π7 Güvenlik seviyesi | — | — | — | Kapsam dışı |
 | π8 Yedeklilik | — | — | — | Kapsam dışı |
 | π9 Tampon (paket) | 16 | 8 | 4 | Kuyruk kapasitesi (makaledeki 512/256/128 KB sensör RAM'iyle uyumsuz; 4:2:1 oranı korundu) |
-| π10 Yeniden iletim limiti | 5 | 3 | 1 | MAC yeniden deneme |
+| π10 Yeniden iletim limiti | 5 | 3 | 1 | macMaxFrameRetries: çerçeve kaybından sonra yeniden iletim sayısı (deneme = 1 + π10). Kanal erişimi bundan bağımsız: macMaxCSMABackoffs = 4 (802.15.4 varsayılanı), bütün sınıflar |
 | π11 Rota güncelleme (s) | 1 | 5 | 30 | Periyodik yeniden değerlendirme (§5.18) |
 | π12 QoS izleme (ms) | 100 | 1000 | 10000 | Metrik örnekleme aralığı |
 
@@ -253,6 +253,9 @@ Kenar maliyeti (u -> v), tüm terimler [0,1]'e normalize:
   λ2 = 0 ile §5.9 B1'in 1,09 / 1,10 / 1,00 katı: kalan ~0,5 atlama PRR teriminden gelir (−log PRR iyi bağlantılarda
   ≈ 0, atlama başına bedel taşımaz; güvenilirlik için bilinçli). Düzeltme öncesi (d²/R² ve normalize ETX):
   §5.9 7,58 / 10,15 / 7,00; B2 4,13 / 4,03 / 6,40 (`route_stats_seed1_before.csv`, kod 8650d57).
+  Yeni PRR eğrisiyle (§5.18a, C.1): atlama B1 2,84 / 2,90 / 4,89; B2 3,11 / 3,10 / 5,04; §5.9 3,31 / 3,48 / 5,09.
+  Uçtan uca PRR (frame) B1 0,46 / 0,65 / 0,24; B2 0,87 / 0,83 / 0,50; §5.9 0,92 / 0,93 / 0,51 (eski eğri:
+  `route_stats_seed1_prr_legacy.csv`).
   Ek atlama başına gecikme terimi (yalnızca E için) M5–M6 gecikme ölçümlerinden sonra, veriyle karar verilir.
 - B2: cost(u,v) = ETX(u,v) + π6 · depletion(u), ETX = 1/PRR (PRR_min'e kırpılmış), ETX NORMALİZE EDİLMEZ.
   MRHOF (RFC 6719) yol maliyetini ETX toplamı olarak alır ve her atlama en az 1 maliyet taşır; ilk sürümdeki
@@ -477,6 +480,11 @@ atlama başına PRR ~0,64. Sırayla, her adım bir öncekinin sonucuyla:
 3. **Yük ızgarası:** B1 yük 1,0'da sınıf PDR'leri hep > 0,98 ise ızgara {1, 2, 4}; herhangi bir sınıfta < 0,80 ise
    {0,25, 0,5, 1}; aksi halde {0,5, 1, 2}. Trafik tanımları (§5.6) değişmez.
 Kalibrasyon B1 ile yapılır (yöntemlerden bağımsız olsun); sonuç results/tables/m6_calibration.csv.
+**Sonuç (16 Kasım):** başlangıç enerjisi 20 J (10 J'de 4/5 seed'de ölüm); yük ızgarası {0,25, 0,5, 1}
+(B1 yük 1,0'da düzenli PDR 0,31). Raporlanacak bulgular: (i) kritik olmayan PDR yükten bağımsız (B1 ~0,16,
+B2 ~0,45): 12 parçalı paket × ~5 atlama × az yeniden deneme → yapısal bağlantı kaybı; (ii) V-SDN politikası
+(B1 vs B1-plain) kritik PDR'yi artırıyor ama AIFS gecikmesi ve π10 = 1 yüzünden Φ'de B1-plain önde;
+(iii) kritik sınıfta π3 = 25 ms en iyi durumda bile sağlanamıyor (B2 yük 0,25: ort. 35 ms, süre sınırı oranı 0,55).
 
 ### 5.19 Deneyler — `experiments/`
 
@@ -567,6 +575,34 @@ ayrıca B3 (eğitimsiz uzman). Her koşul 5 eğitim tekrarı (farklı başlangı
 çevrimdışı ölçütler + orta yükte 10 seed; (K9) ε ∈ {0, 0.02, 0.05, 0.1, 0.2} ve confidence_gate, orta yükte 10 seed;
 ölçüt root değişim sayısı, PDR, gecikme.
 NF-MTAR ana yöntemi = anchored, λ doğrulama pişmanlığına göre seçilir (seçim kuralı önceden sabit).
+
+### 5.21 Teslim sonrası durum (16 Kasım 23:59 teslim edildi) ve sunuma kadar plan
+**Teslim edilen:** rapor (9 s.) ve sunum (14 slayt) PDF, repo `aefc282`. Sunum/savunma tarihi henüz belli değil.
+**Elde edilen sonuçlar (raporda):**
+- M9 minimal: rank + periyodik ve root sağlığı tetikleyicisi + ε histerezisi. TRAFİK TETİKLEYİCİSİ YOK (§5.18 madde 2).
+- E1-10 (seed 1–10, yük {0,25, 0,5}, B1/B2/B3/NF-MTAR): B3, B1'i her sınıfta PDR'de anlamlı geçiyor; B2'yi geçemiyor.
+- E5-lite (3 seed): root sağlığı tetikleyicisiyle kurtarma ~ms; pencere PDR farkı yol maliyetinden.
+- E9-lite + λ taraması (4/1/1 seed veri, 2 tekrar): anchored λ = 1e-2 en iyi denge (pişmanlık 0,360 < none 0,381;
+  sıra bozulması 0; kesişim 0,52; monotonluk ihlali %0,9 vs none %19); zero_l2 her λ'da en kötü.
+  Açık sorunlar: kapsama bütün eğitilmişlerde çöküyor (σ daralıyor); top-1 = 0 her koşulda; veride x2, x3 neredeyse sabit.
+- Eğitilmiş NF-MTAR (anchored 1e-2) ağda: root değişimini B3'e göre azaltıyor ama Φ'de B3, B1, B2'den kötü.
+- K9 (B3, yük 0,5, seed 1–5): ε 0,05 → 0,2 root değişimi 58 → 0,6; düzenli PDR 0,83 → 0,88; Φ 0,583 → 0,536.
+  Güven kapısı (0,3) etkisiz.
+**Kararlar (18 Kasım):**
+- Varsayılan ε = 0,2 (K9 sonucu). ε seed 1–5'te seçildiği için bundan sonraki değerlendirmeler YENİ seed'lerle
+  (11 ve sonrası) yapılır; seed 1–10 sonuçları "geliştirme" kümesi sayılır (test kümesine ayar yapmamak için).
+- Eğitim verisi zenginleştirilir: x2 ve x3'ün değişmesi için düşük başlangıç enerjisi (ör. 2 J) ve uzun koşu (ömür
+  sonuna kadar ya da 1800 s), üç yük birlikte, B1 ve B3 ile; en az 20 seed (14/3/3 seed bazlı ayrım). Kâhin değişmez.
+- Top-1 = 0 teşhisi: kâhinin en iyi adayının özellik vektörü ile modelin seçtiğinin karşılaştırması; kâhin skorunun
+  hangi bileşeninin (teslim, gecikme, dayanıklılık) baskın olduğu; 5 girdinin kâhini ne kadar açıklayabildiği
+  (ör. girdilerden kâhin skoruna basit bir regresyon/ağaç ile üst sınır R²). Sonuç raporlanır; kâhin değiştirilecekse sorulur.
+- Kapsama sorunu için seçenek (önce sor): σ'ya alt sınır (ör. başlangıç σ'nın %50'si) ya da kapsama cezası.
+**Sunuma kadar öncelik sırası:**
+P0 Repo: report/report.pdf, presentation/presentation.pdf (öğrenci ekler), trafik tetikleyicisi, testler, CLAUDE.md.
+P1 Katkı: zengin veri → tam E9 (λ ∈ {1e-3, 3e-3, 1e-2, 3e-2, 1e-1} × 3 mod × 5 tekrar) → seçilen modelle NF-MTAR ağda.
+P2 E1 tam: 5 yöntem × 3 yük × 30 seed (seed 11–40), ε = 0,2; stats + paper_comparison.
+P3 E5 tam (30 seed; B1, NF-MTAR, NF-MTAR-paper = root sağlığı tetikleyicisi kapalı), E8 ömür, E2, E4.
+P4 Canlı demo scripti: bulanık skor + baskın kural; tek komutla root öldürme ve yeniden seçim logu.
 
 ## 6. BEKLEMEDE
 
