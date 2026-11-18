@@ -8,7 +8,7 @@ import pytest
 from nfmtar.config import load_config
 from nfmtar.engine.fuzzy import FuzzyEngine, FuzzyParams, FuzzySpec
 from nfmtar.engine.interpretability import interpretability_report
-from nfmtar.engine.oracle import oracle_scores
+from nfmtar.engine.oracle import oracle_components, oracle_scores
 from nfmtar.engine.trainer import evaluate, train
 from nfmtar.network.radio import RadioModel
 from nfmtar.router import Router
@@ -44,6 +44,22 @@ def test_oracle_range_and_energy_monotone(cfg):
     for v in range(4):
         tired = _oracle(cfg, energy_frac={v: 0.2})
         assert tired[v] <= full[v] + 1e-12, v
+
+
+def test_oracle_components_consistent_with_scores(cfg):
+    """§5.21 teşhisi: oracle_components'in son skoru oracle_scores ile aynı; ağırlıklı bileşenlerin toplamının
+    min-max'ı skordur; bileşenler [0, ağırlık] aralığında."""
+    net, part = make_net(cfg, LINE, energy_frac={1: 0.3})
+    router = Router.for_method(cfg, RadioModel.from_config(cfg), "B3")
+    reach = router.reach_from_edge(net, part, "E")
+    rates = {v: 1.0 for v in range(4)}
+    comp = oracle_components(cfg, router, net, part, "E", reach, rates)
+    scores = oracle_scores(cfg, router, net, part, "E", reach, rates)
+    assert [scores[v] for v in comp["candidates"]] == pytest.approx(comp["score"].tolist())
+    raw = comp["w_delivery"] + comp["w_latency"] + comp["w_resilience"]
+    assert comp["score"] == pytest.approx(0.1 + 0.9 * (raw - raw.min()) / (raw.max() - raw.min()))
+    for key, w in (("w_delivery", "delivery"), ("w_latency", "latency"), ("w_resilience", "resilience")):
+        assert comp[key].min() >= -1e-12 and comp[key].max() <= cfg.oracle["weights"][w] + 1e-12
 
 
 def test_trainer_anchor_strength_and_metrics(spec):

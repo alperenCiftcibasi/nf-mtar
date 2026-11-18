@@ -33,10 +33,18 @@ def _minmax(x: np.ndarray, lo: float = 0.0, hi: float = 1.0) -> np.ndarray:
 
 def oracle_scores(cfg: Config, router, net, part, topology, reach, rates_pps: Mapping[int, float]) -> dict[int, float]:
     """§5.16 kâhin skoru, aday -> [0,1; 1,0]. router: §5.9 ağırlıklı maliyetli Router; reach: EdgeReach (adaylar)."""
+    comp = oracle_components(cfg, router, net, part, topology, reach, rates_pps)
+    return dict(zip(comp["candidates"], comp["score"].tolist()))
+
+
+def oracle_components(cfg: Config, router, net, part, topology, reach, rates_pps: Mapping[int, float]) -> dict:
+    """oracle_scores'un ara değerleri (teşhis için, §5.21): candidates, delivery, latency_s, resilience (ham),
+    ağırlıklı bileşenler w_delivery = w·teslim, w_latency = w·(1 − gecikme_norm), w_resilience = w·dayanıklılık_norm
+    (toplamları ham skor), score (son skor; oracle_scores ile aynı)."""
     radio = router.radio
     cands = sorted(reach.candidates)
     if not cands:
-        return {}
+        return {"candidates": [], "score": np.array([])}
     g = router.routing_graph(net, part, topology)
     sensors = [v for v in g.nodes if not net.nodes[v].is_edge_router]
     rate = {v: float(rates_pps.get(v, 0.0)) for v in sensors}
@@ -82,7 +90,10 @@ def oracle_scores(cfg: Config, router, net, part, topology, reach, rates_pps: Ma
         resil.append(net.nodes[r].energy_J / max(bits_per_s * e_bit, 1e-30))
 
     wts = cfg.oracle["weights"]
-    score = (wts["delivery"] * np.array(deliv) + wts["latency"] * (1 - _minmax(np.array(lat)))
-             + wts["resilience"] * _minmax(np.array(resil)))
+    w_d = wts["delivery"] * np.array(deliv)
+    w_l = wts["latency"] * (1 - _minmax(np.array(lat)))
+    w_r = wts["resilience"] * _minmax(np.array(resil))
     lo, hi = cfg.oracle["score_range"]
-    return dict(zip(cands, _minmax(score, float(lo), float(hi)).tolist()))
+    return {"candidates": cands, "delivery": np.array(deliv), "latency_s": np.array(lat), "resilience": np.array(resil),
+            "w_delivery": w_d, "w_latency": w_l, "w_resilience": w_r,
+            "score": _minmax(w_d + w_l + w_r, float(lo), float(hi))}

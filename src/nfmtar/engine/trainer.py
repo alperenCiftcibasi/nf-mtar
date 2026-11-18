@@ -97,12 +97,19 @@ def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored",
 
 
 def evaluate(f: np.ndarray, y: np.ndarray, groups: np.ndarray) -> dict[str, float]:
-    """MSE, grup içi Spearman (ortalama), top-1 uyumu, pişmanlık (§5.16)."""
+    """MSE, grup içi Spearman (ortalama), top-1 uyumu, pişmanlık (§5.16).
+
+    Gruplar bir kez sıralanıp dilimlenir (büyük veride grup başına tam maske O(G·n) yerine O(n log n)); grup içinde
+    satır sırası korunur (kararlı sıralama), bu yüzden argmax eşitlikleri eski uygulamayla aynı kırılır."""
+    f, y, groups = np.asarray(f), np.asarray(y), np.asarray(groups)
     out = {"mse": float(np.mean((y - f) ** 2))}
+    order = np.argsort(groups, kind="stable")
+    fs, ys = f[order], y[order]
+    _, starts = np.unique(groups[order], return_index=True)
+    bounds = [*starts.tolist(), len(order)]
     rhos, top1, regret = [], [], []
-    for g in np.unique(groups):
-        m = groups == g
-        fg, yg = f[m], y[m]
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        fg, yg = fs[a:b], ys[a:b]
         if len(fg) < 2:
             continue
         if np.ptp(fg) > 0 and np.ptp(yg) > 0:

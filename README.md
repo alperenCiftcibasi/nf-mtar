@@ -210,6 +210,14 @@ python experiments/e5_lite.py                                    # -> results/ta
 # E9-lite (contribution K1, small scale): oracle-labelled snapshots, then training with anchored / zero_l2 / none
 python experiments/build_training_data.py                        # -> data/e9_lite.npz (B1, load 0.5, seeds 1-6, K = 10 s)
 python experiments/e9_lite.py                                    # -> results/tables/e9_lite.csv, results/figures/e9_lite_terms.png
+
+# Rich training data (CLAUDE.md §5.21): 2 J, until end of life or 1800 s, loads {0.25, 0.5, 1}, B1 and B3,
+# seeds 101-120 split 14/3/3 by seed; ~1.9M rows, ~30 min on 8 workers (data/ is not in git)
+python experiments/build_training_data.py --seeds $(seq 101 120) --val-seeds 115 116 117 --test-seeds 118 119 120 \
+    --loads 0.25 0.5 1 --methods B1 B3 --initial-energy 2 --duration 1800 --until-dead --workers 8 --out data/e9_rich.npz
+python experiments/analysis/e9_data_summary.py                   # -> results/tables/e9_data_summary.csv (x1-x5, oracle)
+python experiments/analysis/top1_diagnosis.py                    # -> results/tables/top1_*.csv (§5.21 top-1 diagnosis)
+python experiments/e9_lambda.py --data data/e9_rich.npz --lams 1e-2 --tag rich   # E9-lite rerun on rich data
 ```
 
 ## Repository Structure
