@@ -11,10 +11,11 @@ Uygulanan kararlar:
   check_interval_s'de kontrol eder ve tetiklenen sınıfın topolojisi için bu politikayı çağırır (değiştirme kuralı
   periyodikle aynı: ε, min_dwell, güven kapısı).
 - Değiştirme kuralı (§5.18): değiştir ⇔ R(current) − R(r*) > ε VE son değişiklikten ≥ min_dwell (= 2 × π11)
-  VE (confidence_gate kapalı VEYA güven(r*) ≥ conf_min). Varsayılan ε = 0,05, güven kapısı kapalı.
+  VE (confidence_gate kapalı VEYA güven(r*) ≥ conf_min). Varsayılan ε = 0,2 (§5.21, K9), güven kapısı kapalı.
 - Skor (§5.14): engine/fuzzy.extract_features (nominal trafik hızları §5.6, o anki kuyruk doluluğu ve enerji) +
   FuzzyStrategy.score_batch; rank (§5.17): engine/rank.py, H = EdgeReach.hops, C = EdgeReach.cost.
-- Her değişim `changes` listesine yazılır (zaman, topoloji, eski/yeni, R farkı, tetikleyici).
+- Her değişim `changes` listesine yazılır (zaman, topoloji, eski/yeni, R farkı, tetikleyici türü, kural);
+  simülasyonun root değişim logu aynı tetikleyici türünü `last_decision`'dan alır.
 """
 
 from __future__ import annotations
@@ -122,6 +123,7 @@ class DynamicRootPolicy:
         self.last_change: dict[Topology, float] = {}
         self.changes: list[dict[str, Any]] = []
         self.last_rank: dict[Topology, RankResult] = {}
+        self.last_decision: dict[str, Any] = {}
 
     @classmethod
     def for_method(cls, cfg: Config, method: str, radio, net, params=None) -> "DynamicRootPolicy":
@@ -149,7 +151,11 @@ class DynamicRootPolicy:
         return rank_candidates(cands, out.score, out.confidence, [reach.hops[v] for v in cands],
                                [reach.cost[v] for v in cands], self.weights[topology])
 
-    def select(self, topology, net, part, reach, current: int | None, now: float) -> int | None:
+    def select(self, topology, net, part, reach, current: int | None, now: float,
+               trigger: str = "periodic") -> int | None:
+        """trigger: yeniden değerlendirmeyi başlatan olay — "initial", "periodic" (§5.18-1), "traffic" (§5.18-2),
+        "node_death" (§5.10a: bir düğüm öldü). Root sağlığı (§5.18-3) her çağrıda ayrıca denetlenir; root değişirse
+        `last_decision` = {trigger, rule, delta_R}: trigger root sağlığı ise "root_health", değilse çağıran olay."""
         topology = Topology(topology)
         if not reach.candidates:
             return None
@@ -158,27 +164,28 @@ class DynamicRootPolicy:
         best = rr.best
         since = now - self.last_change.get(topology, -math.inf)
         if current is None:
-            reason = "initial"
+            trig, rule = "initial", "initial"
         elif current not in reach.candidates:                      # root öldü veya edge yolu yok
             if self.health_enabled:
-                reason = "health:dead_or_no_edge_path"
+                trig, rule = "root_health", "dead_or_no_edge_path"
             elif since >= self.min_dwell_s(topology):              # tetikleyici kapalı: R(ölü) = ∞, dwell geçerli
-                reason = "periodic:dead_root"
+                trig, rule = trigger, "dead_root"
             else:
                 return current
         elif self.health_enabled and net.nodes[current].depletion > self.depletion_threshold:
-            reason = "health:depletion"
+            trig, rule = "root_health", "depletion"
         else:
             delta = rr.rank_of(current) - rr.rank_of(best)
             conf_ok = (not self.confidence_gate) or rr.confidence_of(best) >= self.conf_min
             if best != current and delta > self.epsilon and since >= self.min_dwell_s(topology) and conf_ok:
-                reason = "periodic:hysteresis"
+                trig, rule = trigger, "hysteresis"
             else:
                 return current
         if best != current:
             delta = rr.rank_of(current) - rr.rank_of(best) if current in rr.candidates else math.inf
+            self.last_decision = {"trigger": trig, "rule": rule, "delta_R": delta}
             self.changes.append({"time_s": now, "topology": topology.value, "old": current, "new": best,
-                                 "delta_R": delta, "trigger": reason})
+                                 **self.last_decision})
             self.last_change[topology] = now
-            log.info("t=%.2f %s: root %s -> %s (%s, dR=%.3f)", now, topology.value, current, best, reason, delta)
+            log.info("t=%.2f %s: root %s -> %s (%s/%s, dR=%.3f)", now, topology.value, current, best, trig, rule, delta)
         return best

@@ -209,12 +209,12 @@ controller:                              # §5.8 V-SDN, §5.18 yeniden değerlen
       depletion_threshold: 0.9           # §5.18 tükenme > 0.9
       require_edge_path: true            # §5.18 edge router'a yolu yoksa tetikle
   switching:                             # §5.18 değiştirme kuralı
-    epsilon: 0.05                        # §5.18 R(current) - R(r*) > ε
+    epsilon: 0.2                         # §5.18 R(current) - R(r*) > ε (§5.21: K9 sonucu 0,05 -> 0,2)
     min_dwell_multiplier: 2              # §5.18 min_dwell = 2 × π11
     confidence_gate: false               # §5.18 güven kapısı kapalı
     conf_min: 0.01                       # §5.18 güven(r*) >= conf_min (varsayılan; CLAUDE.md'de sayı yok)
     health_trigger_bypasses_margin: true # §5.18 root sağlığı tetikleyicisinde marj/bekleme atlanır
-    log_changes: true                    # §5.18 zaman, topoloji, eski/yeni, R farkı, tetikleyici
+    log_changes: true                    # §5.18 zaman, topoloji, eski/yeni, R farkı, tetikleyici türü, kural
   ablation:                              # §5.18 ablasyon bayrakları
     epsilon_values: [0.0, 0.02, 0.05, 0.1, 0.2]
     confidence_gate_values: [false, true]

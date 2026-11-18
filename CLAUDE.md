@@ -473,8 +473,10 @@ Değiştirme kuralı:
 - Root sağlığı tetikleyicisi: r* hemen seçilir (marj/bekleme atlanır)
 - Aksi halde değiştir ⇔ R(current) − R(r*) > ε VE son değişiklikten ≥ min_dwell VE
   (confidence_gate kapalı VEYA güven(r*) ≥ conf_min)
-- Varsayılan: ε = 0.05, min_dwell = 2 × π11, confidence_gate = false
-- Her root değişimi loglanır (zaman, topoloji, eski/yeni, R farkı, tetikleyici)
+- Varsayılan: ε = 0.2 (18 Kasım, K9 sonucu; önceden 0.05), min_dwell = 2 × π11, confidence_gate = false
+- Her root değişimi loglanır (zaman, topoloji, eski/yeni, R farkı, tetikleyici): `root_changes` satırında
+  reason (olay: initial / periodic / traffic:<sınıf> / death:<düğüm>), trigger (periodic / traffic / root_health /
+  node_death), rule (hysteresis / dead_or_no_edge_path / depletion / dead_root / static_reselect / no_candidate), delta_R
 Ablasyon bayrakları: ε ∈ {0, 0.02, 0.05, 0.1, 0.2}, confidence_gate, root_health_trigger.
 
 ### 5.18a Çalışma noktası kalibrasyonu (M6)

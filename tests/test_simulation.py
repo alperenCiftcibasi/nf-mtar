@@ -237,6 +237,7 @@ def test_node_death_drops_queue_and_reselects_static_root():
     assert 0 < t_death < 10.0 and not net.nodes[0].alive
     changes = [rc for rc in res.root_changes if rc["topology"] == "E"]
     assert len(changes) == 1 and changes[0]["old"] == 0 and changes[0]["new"] == 1 and changes[0]["reason"] == "death:0"
+    assert changes[0]["trigger"] == "root_health" and changes[0]["rule"] == "static_reselect"   # §5.18 log
     assert res.roots[Topology.E] == 1
     after = [ps for ps in res.packets if ps.packet.source == 2 and ps.delivered and ps.packet.created_s > t_death]
     assert after and all(ps.hops == 2 for ps in after)                      # n2 -> n1 -> Edge-E

@@ -38,7 +38,10 @@ Uygulanan kararlar:
 - §5.10a yol güncelleme: topoloji başına π11'de bir (`route_update_s`) ve ölümde hemen; her güncellemenin süresi
   kaydedilir (§5.13 karar turu çalışma süresi). Root seçimi `RootPolicy` arayüzünün arkasındadır: M5'te
   `StaticRootPolicy` (§5.12: canlı ve edge router'a yolu olan root korunur; değilse `router.static_root` ile yenisi).
-  M9'da controller + engine aynı arayüze bağlanır (dinamik root, histerezis).
+  M9'da controller + engine aynı arayüze bağlanır (dinamik root, histerezis). Root değişim logu (§5.18): reason =
+  güncellemeyi başlatan olay (initial / periodic / traffic:<sınıf> / death:<düğüm>), trigger = §5.18 tetikleyici
+  türü (periodic / traffic / root_health / node_death), rule = karar kuralı (hysteresis, dead_or_no_edge_path,
+  depletion, dead_root, static_reselect, no_candidate), delta_R.
 - §5.18 tetikleyici 2 (trafik): dinamik root politikasında (`traffic_trigger`) kaynakta oluşan her paket
   `controller.TrafficMonitor`'a bildirilir; her check_interval_s'de kontrol edilir, tetiklenen sınıfın topolojisi
   hemen yeniden değerlendirilir (reason "traffic:<sınıf>"). Sabit root'lu yöntemlerde izlenmez (§5.10a).
@@ -230,7 +233,7 @@ class RootPolicy(Protocol):
     name: str
 
     def select(self, topology: Topology, net: PhysicalNetwork, part: Partition, reach: EdgeReach,
-               current: int | None, now: float) -> int | None: ...
+               current: int | None, now: float, trigger: str = "periodic") -> int | None: ...
 
 
 class StaticRootPolicy:
@@ -239,12 +242,17 @@ class StaticRootPolicy:
 
     name = "static"
 
+    def __init__(self) -> None:
+        self.last_decision: dict[str, Any] = {}
+
     def select(self, topology: Topology, net: PhysicalNetwork, part: Partition, reach: EdgeReach,
-               current: int | None, now: float) -> int | None:
+               current: int | None, now: float, trigger: str = "periodic") -> int | None:
         if not reach.candidates:
             return None
         if current is not None and current in reach.candidates:
             return current
+        self.last_decision = {"trigger": "initial" if current is None else "root_health", "rule": "static_reselect",
+                              "delta_R": math.nan}
         return static_root(net, reach)
 
 
@@ -665,11 +673,19 @@ class Simulation:
         t0 = time.perf_counter()
         rs = self.routes[topology]
         reach = self.router.reach_from_edge(self.net, self.part, topology)
-        root = self.root_policy.select(topology, self.net, self.part, reach, rs.root, self.now)
+        event = reason.split(":")[0]
+        event = {"death": "node_death"}.get(event, event)           # initial | periodic | traffic | node_death
+        root = self.root_policy.select(topology, self.net, self.part, reach, rs.root, self.now, trigger=event)
         plan = self.router.plan_routes(self.net, self.part, topology, root, reach) if root is not None else None
         if root != rs.root and reason != "initial":
-            self.root_changes.append({"time_s": self.now, "topology": topology.value, "old": rs.root, "new": root, "reason": reason})
-            log.info("t=%.3f topoloji %s: root %s -> %s (%s)", self.now, topology.value, rs.root, root, reason)
+            decision = getattr(self.root_policy, "last_decision", None) or {}
+            if root is None:                                         # aday kalmadı
+                decision = {"trigger": "root_health", "rule": "no_candidate", "delta_R": math.nan}
+            self.root_changes.append({"time_s": self.now, "topology": topology.value, "old": rs.root, "new": root,
+                                      "reason": reason, "trigger": decision.get("trigger", event),
+                                      "rule": decision.get("rule", ""), "delta_R": decision.get("delta_R", math.nan)})
+            log.info("t=%.3f topoloji %s: root %s -> %s (%s; %s/%s)", self.now, topology.value, rs.root, root, reason,
+                     decision.get("trigger", event), decision.get("rule", ""))
         rs.reach, rs.plan, rs.root = reach, plan, root
         self.route_update_ms[topology].append((time.perf_counter() - t0) * 1000.0)
 

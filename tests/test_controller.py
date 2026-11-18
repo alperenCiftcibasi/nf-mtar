@@ -29,6 +29,10 @@ def test_b3_smoke_root_health_trigger_and_hysteresis():
     health = [rc for rc in res.root_changes if rc["reason"].startswith("death:")]
     assert len(health) == 3 and all(rc["old"] in deaths and rc["new"] not in deaths for rc in health)
     assert all(math.isclose(rc["time_s"], 15.0) for rc in health)
+    assert all(rc["trigger"] == "root_health" and rc["rule"] == "dead_or_no_edge_path" for rc in health)  # §5.18 log
+    assert all(rc["trigger"] in ("periodic", "traffic", "root_health", "node_death") for rc in res.root_changes)
+    assert all(rc["trigger"] == "periodic" for rc in res.root_changes if rc["reason"] == "periodic"
+               and rc["rule"] == "hysteresis")
     assert sum(ps.delivered for ps in res.packets if ps.packet.created_s > 15.0) > 0   # kurtarma
     # periyodik değişimler arasında en az min_dwell
     for t in ("E", "L", "R"):
@@ -118,3 +122,17 @@ def test_traffic_trigger_in_simulation_only_for_dynamic_root():
     times = {e["time_s"] for e in res.traffic_triggers}
     assert all(rc["time_s"] in times for rc in res.root_changes if rc["reason"].startswith("traffic:"))
     assert run_simulation(cfg, "B1", seed=2).traffic_triggers == []
+
+
+def test_root_health_trigger_off_logs_dead_root_with_event_trigger():
+    """Root sağlığı tetikleyicisi kapalı (E5 NF-MTAR-paper): ölü root R = ∞ ile ve min_dwell geçmişse değişir; log'daki
+    tetikleyici türü root_health DEĞİL, değerlendirmeyi başlatan olaydır (burada düğüm ölümü), kural dead_root.
+    Arıza 65 s'de: üç topolojide de min_dwell (R'de 2·30 = 60 s) dolmuş."""
+    cfg = load_config(overrides={"simulation.duration_s": 80.0, "run.warm_up_s": 5.0, "traffic.load_multiplier": 0.25,
+                                 "network.n_nodes": 60, "controller.triggers.root_health.enabled": False})
+    res = run_simulation(cfg, "B3", seed=2, kill_roots_at_s=65.0)
+    dead = [rc for rc in res.root_changes if rc["rule"] == "dead_root"]
+    assert sorted(rc["topology"] for rc in dead) == ["E", "L", "R"]
+    assert {rc["old"] for rc in dead} <= {u for _, u in res.deaths}
+    assert all(math.isclose(rc["time_s"], 65.0) and rc["trigger"] == "node_death" for rc in dead)
+    assert not [rc for rc in res.root_changes if rc["trigger"] == "root_health"]
