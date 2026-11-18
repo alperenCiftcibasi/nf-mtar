@@ -1,6 +1,6 @@
 # NF-MTAR Re-implementation: Neuro-Fuzzy Multi-Topology Adaptive Routing for Healthcare IoT
 
-## Status (16 November 2026)
+## Status (18 November 2026)
 
 | Milestone | State |
 |---|---|
@@ -8,7 +8,7 @@
 | M5: event-driven simulation core (`simulation.py`) and metrics (`metrics.py`, incl. QoS satisfaction and Φ) | done |
 | M6: operating point calibration (PRR curve, 20 J initial energy, E1 load grid {0.25, 0.5, 1}); B1-plain / B1 / B2 at 3 loads × 5 seeds | done |
 | M7: zero-order Sugeno fuzzy engine (750 rules), PyTorch equivalent, feature extraction, B3 strategy, paper-rule calibration report | done |
-| M9 (minimal): rank (§5.17), dynamic-root controller with periodic + root-health triggers, ε hysteresis and min_dwell; B3 runs in the simulator | done (traffic trigger not implemented) |
+| M9: rank (§5.17), dynamic-root controller with periodic, traffic (§5.18-2: per-class sliding window + Poisson significance guard, z = 3) and root-health triggers, ε hysteresis (default ε = 0.2 since 18 Nov) and min_dwell; root-change log records the trigger type; B3 runs in the simulator | done |
 | E5-lite: forced root failure at t = 300 s, B1 vs B3, 3 seeds | done (`results/tables/e5_lite.csv`) |
 | E9-lite (contribution K1, small scale): §5.16 oracle, training data (6 seeds, split by seed), trainer with anchored / zero_l2 / none, §5.20 interpretability measures | done (`results/tables/e9_lite.csv`) |
 | M12: paired statistics, figures, paper comparison (`experiments/analysis/make_all.py`) | done (code; waits for full experiment runs) |
@@ -17,7 +17,8 @@
 | Unit tests for oracle, trainer and interpretability; references (IEEE) in `references/README.md` | done |
 | M8 at full scale (5 training repeats, more data) and NF-MTAR network runs | **missing** |
 | Full experiments: E1 with 30 seeds, load 1, B1-plain and NF-MTAR; E2, E3 (packet logs), E4, E5 (30 seeds), E8, E9 network part | **missing** |
-| Report and presentation PDFs | added at submission (`report/`, `presentation/`) |
+| Report and presentation PDFs | submitted 16 Nov (`report/report.pdf`, `presentation/presentation.pdf`, repo `aefc282`) |
+| Post-submission plan (CLAUDE.md §5.21): P0 repo + traffic trigger; P1 richer training data, top-1 diagnosis, full E9; P2–P4 full experiments and live demo. Evaluations after 18 Nov use new seeds (11+); seeds 1–10 are the development set | in progress |
 
 
 ## Project Title
