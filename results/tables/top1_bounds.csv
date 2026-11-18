@@ -1,0 +1,8 @@
+model,features,r2,mse,spearman,top1,regret
+B3 expert fuzzy,pointwise,-1.12721,0.10332,0.54374,0.10119,0.21585
+trained fuzzy (e9_lite_anchored),pointwise,0.32327,0.03287,0.65588,0.08912,0.22255
+HistGradientBoosting,pointwise,0.37621,0.03030,0.61306,0.09061,0.25086
+RandomForest,pointwise,0.32472,0.03280,0.57781,0.05820,0.26194
+HistGradientBoosting,context,0.49125,0.02471,0.68092,0.12269,0.19178
+RandomForest,context,0.48865,0.02484,0.67968,0.10367,0.20521
+random choice,-,,,,0.03382,0.40288
