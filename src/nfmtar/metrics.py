@@ -183,6 +183,7 @@ def network_metrics(result: SimulationResult) -> dict[str, float]:
         "hops_active_at_end": result.hops_active_at_end,
         "ttl_drops": result.ttl_drops,
         "root_changes_total": len(result.root_changes),
+        "traffic_triggers_total": len(result.traffic_triggers),
     }
     for t in TOPOLOGY_ORDER:
         m[f"energy_J_{t.value}"] = sum(consumed[v] for v in part.members[t])

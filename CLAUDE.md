@@ -457,6 +457,16 @@ R(v) = w1·(1 − f_norm(v)) + w2·H(v)/H_max + w3·C(v)/C_max ; r* = argmin R
 Tetikleyiciler (herhangi biri):
 1. Periyodik: π11 doldu
 2. Trafik: herhangi bir sınıfta |λ(t) − λ(t−Δt)| / max(λ(t−Δt), ε0) > τ_traffic (varsayılan 0.3)
+   Uygulama (18 Kasım, `controller.TrafficMonitor`): λ sınıf başına kayan pencerede (Δt = 10 s, 1 s'de bir kontrol,
+   nedensel: yalnızca o ana kadar oluşan paketler); tetiklenen sınıfın topolojisi yeniden değerlendirilir, değiştirme
+   kuralı periyodikle aynı; sınıf tetiklendikten sonra Δt boyunca yeniden tetiklenmez; yalnızca dinamik root'lu
+   yöntemlerde. **Sapma (onaylandı):** ayrıca Poisson anlamlılık koşulu |n(t) − n(t−Δt)| > z·sqrt(n(t) + n(t−Δt)),
+   z = 3 (config; 0 = saf formül). Gerekçe (gerçek izler, 3 seed × 600 s): saf formül durağan trafikte gürültüyle
+   tetikleniyor (kritik olmayan sınıf yük 0,25 / 0,5 / 1'de koşu başına ~41 / 25 / 15; kritik ~8 yük 0,25'te);
+   z = 3 ile durağan trafikte sınıf başına ~1, epizotlu kritik tetiklemeler değişmiyor (24 / 18 / 7).
+   Not: sınıf düzeyinde tek bir epizot (+10 paket/s) 150 düğümde τ'nun altında kalır (kritik toplam ~56–90 paket/s);
+   tetiklemelerin çoğu çakışan epizotlardan. Ayrıca controller'ın x1'i nominal hızlarla hesaplandığı için tetikleme
+   kararı x1 üzerinden değil, o anki kuyruk/enerji/yol durumu üzerinden etkiler.
 3. Root sağlığı: root öldü VEYA tükenme > 0.9 VEYA edge router'a yolu yok (makalede YOK; eklendi)
 
 Değiştirme kuralı:

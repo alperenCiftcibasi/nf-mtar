@@ -7,7 +7,9 @@ Uygulanan kararlar:
 - Tetikleyiciler (§5.18): (1) periyodik — simülasyon topoloji başına π11'de bir yol güncellemesi yapar ve bu politikayı
   çağırır; (3) root sağlığı — root öldü (aday değil), tükenme > depletion_threshold (0,9) veya edge router'a yolu yok
   (aday değil): r* hemen seçilir, marj/bekleme atlanır. Ölüm de simülasyonda anında yol güncellemesi tetikler.
-  (2) trafik tetikleyicisi bu minimal sürümde YOK (sınırlılık).
+  (2) trafik — `TrafficMonitor` (sınıf başına kayan pencere, Poisson anlamlılık koşuluyla); simülasyon her
+  check_interval_s'de kontrol eder ve tetiklenen sınıfın topolojisi için bu politikayı çağırır (değiştirme kuralı
+  periyodikle aynı: ε, min_dwell, güven kapısı).
 - Değiştirme kuralı (§5.18): değiştir ⇔ R(current) − R(r*) > ε VE son değişiklikten ≥ min_dwell (= 2 × π11)
   VE (confidence_gate kapalı VEYA güven(r*) ≥ conf_min). Varsayılan ε = 0,05, güven kapısı kapalı.
 - Skor (§5.14): engine/fuzzy.extract_features (nominal trafik hızları §5.6, o anki kuyruk doluluğu ve enerji) +
@@ -19,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import deque
 from typing import Any
 
 from nfmtar.config import Config
@@ -28,6 +31,71 @@ from nfmtar.engine.rank import RankResult, rank_candidates
 from nfmtar.network.graph import Topology
 
 log = logging.getLogger(__name__)
+
+
+class TrafficMonitor:
+    """§5.18 tetikleyici 2: sınıf başına kayan pencerede varış hızı ve göreli değişim.
+
+    λ_c(t) = (t − Δt, t] aralığında oluşan c sınıfı paket sayısı / Δt. Her kontrol anında (check_interval_s'de bir)
+    |λ_c(t) − λ_c(t − Δt)| / max(λ_c(t − Δt), ε0) > τ_traffic ise c tetiklenir. Pencere kayar: iki ardışık pencere
+    (t − 2Δt, t − Δt] ve (t − Δt, t] her kontrol anında yeniden sayılır. Nedensel: yalnızca `observe` ile o ana kadar
+    bildirilmiş varışları kullanır (izin geleceğini görmez). Tetiklenen sınıf, karşılaştırma penceresi tazelensin diye
+    cooldown_s boyunca yeniden tetiklenmez. İlk 2Δt'de (λ(t − Δt) tanımsız) tetiklenmez.
+    Poisson anlamlılık koşulu (§5.18 sapması, 18 Kasım): ayrıca |n(t) − n(t − Δt)| > z·sqrt(n(t) + n(t − Δt)) olmalı
+    (n = penceredeki paket sayısı; iki Poisson sayımının farkının std'si). Gerekçe: z olmadan durağan trafikte düşük
+    hızlı sınıflar gürültüyle sürekli tetikleniyordu (kritik olmayan, yük 0,25: koşu başına ~41); z = 3 ile ~1.
+    z = 0 koşulu kapatır (makaledeki saf formül).
+    """
+
+    def __init__(self, classes, delta_t_s: float, tau: float, eps0_pps: float, cooldown_s: float,
+                 significance_z: float = 0.0) -> None:
+        if delta_t_s <= 0:
+            raise ValueError("delta_t_s > 0 olmalı")
+        self.delta_t_s = float(delta_t_s)
+        self.tau = float(tau)
+        self.eps0 = float(eps0_pps)
+        self.cooldown_s = float(cooldown_s)
+        self.z = float(significance_z)
+        self.times: dict[str, deque[float]] = {c: deque() for c in classes}
+        self.last_fire: dict[str, float] = {c: -math.inf for c in classes}
+        self.events: list[dict[str, Any]] = []
+
+    @classmethod
+    def from_config(cls, cfg: Config, classes) -> "TrafficMonitor":
+        tr = cfg.controller["triggers"]["traffic"]
+        dt = float(tr["delta_t_s"])
+        return cls(classes, dt, float(tr["tau_traffic"]), float(tr["eps0_pps"]), float(tr.get("cooldown_s", dt)),
+                   float(tr.get("significance_z", 0.0)))
+
+    def observe(self, traffic_class: str, t: float) -> None:
+        """Kaynakta yeni paket oluştu (§5.6 izinden, oluşturulma anında)."""
+        self.times[traffic_class].append(t)
+
+    def rates(self, traffic_class: str, now: float) -> tuple[float, float]:
+        """(λ(t − Δt), λ(t)) paket/s; 2Δt'den eski varışlar atılır."""
+        q = self.times[traffic_class]
+        dt = self.delta_t_s
+        while q and q[0] <= now - 2 * dt:
+            q.popleft()
+        n_now = sum(1 for x in q if x > now - dt)
+        return (len(q) - n_now) / dt, n_now / dt
+
+    def check(self, now: float) -> list[str]:
+        """Kontrol anı: tetiklenen sınıfları döndürür ve `events`'e yazar."""
+        fired: list[str] = []
+        for c in self.times:
+            lam_prev, lam_now = self.rates(c, now)
+            if now < 2 * self.delta_t_s or now - self.last_fire[c] < self.cooldown_s:
+                continue
+            change = abs(lam_now - lam_prev) / max(lam_prev, self.eps0)
+            n_prev, n_now = lam_prev * self.delta_t_s, lam_now * self.delta_t_s
+            significant = abs(n_now - n_prev) > self.z * math.sqrt(n_now + n_prev)
+            if change > self.tau and significant:
+                self.last_fire[c] = now
+                fired.append(c)
+                self.events.append({"time_s": now, "traffic_class": c, "lambda_prev_pps": lam_prev,
+                                    "lambda_now_pps": lam_now, "relative_change": change})
+        return fired
 
 
 class DynamicRootPolicy:
@@ -49,6 +117,7 @@ class DynamicRootPolicy:
         health = ctl["triggers"]["root_health"]
         self.health_enabled = bool(health["enabled"])
         self.depletion_threshold = float(health["depletion_threshold"])
+        self.traffic_trigger = bool(ctl["triggers"]["traffic"]["enabled"])   # §5.18 (2); simülasyon izler
         self.weights = {t: tuple(cfg.rank["weights"][t.value]) for t in Topology}
         self.last_change: dict[Topology, float] = {}
         self.changes: list[dict[str, Any]] = []

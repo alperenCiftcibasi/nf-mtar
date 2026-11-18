@@ -39,6 +39,9 @@ Uygulanan kararlar:
   kaydedilir (§5.13 karar turu çalışma süresi). Root seçimi `RootPolicy` arayüzünün arkasındadır: M5'te
   `StaticRootPolicy` (§5.12: canlı ve edge router'a yolu olan root korunur; değilse `router.static_root` ile yenisi).
   M9'da controller + engine aynı arayüze bağlanır (dinamik root, histerezis).
+- §5.18 tetikleyici 2 (trafik): dinamik root politikasında (`traffic_trigger`) kaynakta oluşan her paket
+  `controller.TrafficMonitor`'a bildirilir; her check_interval_s'de kontrol edilir, tetiklenen sınıfın topolojisi
+  hemen yeniden değerlendirilir (reason "traffic:<sınıf>"). Sabit root'lu yöntemlerde izlenmez (§5.10a).
 - §5.10a zaman: üretim duration_s'de durur (iz [0, duration) aralığındadır), drain_s boyunca yoldaki paketler
   tamamlanır, kalanlar in_flight_at_end. Isınma ayrımı metrics.py'de (paket oluşturma zamanı >= warm_up_s);
   kanalın sınıf bazlı airtime'ı ısınma sonunda ayrıca kaydedilir ki ısınma sonrası pay hesaplanabilsin.
@@ -277,6 +280,7 @@ class SimulationResult:
     class_topology: dict[str, Topology]
     deaths: list[tuple[float, int]]                 # (zaman, düğüm)
     root_changes: list[dict[str, Any]]
+    traffic_triggers: list[dict[str, Any]]           # §5.18 tetikleyici 2 olayları (yalnızca dinamik root)
     roots: dict[Topology, int | None]
     route_update_ms: dict[Topology, list[float]]
     airtime_total_s: dict[str, float]              # bütün koşu
@@ -365,6 +369,12 @@ class Simulation:
 
             root_policy = DynamicRootPolicy.for_method(cfg, method, self.radio, self.net)
         self.root_policy: RootPolicy = root_policy or StaticRootPolicy()
+        self.traffic_monitor = None                            # §5.18 tetikleyici 2 (yalnızca dinamik root)
+        if getattr(self.root_policy, "traffic_trigger", False):
+            from nfmtar.controller import TrafficMonitor
+
+            self.traffic_monitor = TrafficMonitor.from_config(cfg, list(cfg.traffic.classes))
+            self.traffic_check_s = float(cfg.controller["triggers"]["traffic"]["check_interval_s"])
         self.kill_roots_at_s: float | None = None   # E5 kök arıza enjeksiyonu (§5.19); run_simulation ayarlar
         self.root_failures: list[tuple[float, str, int]] = []
         self.snapshot_interval_s: float | None = None   # §5.16 eğitim verisi: her K saniyede ağ durumu kaydı
@@ -436,6 +446,8 @@ class Simulation:
         self._push(self.warm_up_s, EV_CONTROL, "warm_up_end")
         if self.kill_roots_at_s is not None:
             self._push(self.kill_roots_at_s, EV_CONTROL, "kill_roots")
+        if self.traffic_monitor is not None:
+            self._push(self.traffic_check_s, EV_ROUTE_UPDATE, "traffic_check")
         if self.snapshot_interval_s and self.snapshot_hook is not None:
             self._push(self.snapshot_interval_s, EV_CONTROL, "snapshot")
         self._push(self.end_s, EV_CONTROL, "end")
@@ -458,6 +470,11 @@ class Simulation:
             elif kind == "route":
                 self._update_routes(payload, reason="periodic")
                 self._push(self.now + self._route_period_s(payload), EV_ROUTE_UPDATE, "route", payload)
+            elif kind == "traffic_check":
+                for c in self.traffic_monitor.check(self.now):
+                    self._update_routes(self.class_topology[c], reason=f"traffic:{c}")
+                if self.now + self.traffic_check_s < self.duration_s:
+                    self._push(self.now + self.traffic_check_s, EV_ROUTE_UPDATE, "traffic_check")
             elif kind == "warm_up_end":
                 self.airtime_warm_up_s = dict(self.channel.airtime_s_by_class)
                 self.energy_warm_up_J = {v: self.net.nodes[v].energy_J for v in self.net.sensor_ids}
@@ -477,7 +494,8 @@ class Simulation:
             cfg=self.cfg, method=self.method, seed=self.seed, relay_mode=self.relay_mode, vsdn_policy=self.vsdn_policy,
             duration_s=self.duration_s, warm_up_s=self.warm_up_s, drain_s=self.drain_s, pn=self.pn, trace=self.trace,
             packets=self.packets, class_topology=self.class_topology, deaths=list(self.deaths),
-            root_changes=list(self.root_changes), roots={t: rs.root for t, rs in self.routes.items()},
+            root_changes=list(self.root_changes),
+            traffic_triggers=list(self.traffic_monitor.events) if self.traffic_monitor is not None else [], roots={t: rs.root for t, rs in self.routes.items()},
             route_update_ms={t: list(v) for t, v in self.route_update_ms.items()},
             airtime_total_s=dict(self.channel.airtime_s_by_class), airtime_warm_up_s=dict(self.airtime_warm_up_s),
             energy_warm_up_J=dict(self.energy_warm_up_J),
@@ -494,6 +512,8 @@ class Simulation:
     def _on_trace_arrival(self, idx: int) -> None:
         """İzdeki idx. paket kaynağında oluşur; sıradaki varış olayı tembelce kuyruğa eklenir (§5.6)."""
         ps = self.packets[idx]
+        if self.traffic_monitor is not None:
+            self.traffic_monitor.observe(ps.packet.traffic_class, ps.packet.created_s)
         self._enqueue(ps, ps.packet.source)
         if idx + 1 < len(self.packets):
             self._push(self.packets[idx + 1].packet.created_s, EV_ARRIVAL, "trace", idx + 1)

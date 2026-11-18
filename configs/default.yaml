@@ -200,7 +200,10 @@ controller:                              # §5.8 V-SDN, §5.18 yeniden değerlen
       enabled: true                      # §5.18 (2) trafik değişimi
       tau_traffic: 0.3                   # §5.18 |λ(t) - λ(t-Δt)| / max(λ(t-Δt), ε0) > τ_traffic
       eps0_pps: 0.01                     # §5.18 ε0 (varsayılan; CLAUDE.md'de sayı yok)
-      delta_t_s: 10.0                    # §5.18 Δt (varsayılan; CLAUDE.md'de sayı yok)
+      delta_t_s: 10.0                    # §5.18 Δt (varsayılan; CLAUDE.md'de sayı yok); kayan pencere uzunluğu
+      check_interval_s: 1.0              # §5.18 kontrol aralığı (pencere bu adımla kayar)
+      cooldown_s: 10.0                   # §5.18 tetiklenen sınıf bu süre yeniden tetiklenmez (= Δt; pencere tazelensin)
+      significance_z: 3.0                # §5.18 sapması: |n_t - n_(t-Δt)| > z·sqrt(n_t + n_(t-Δt)) de gerekir (Poisson gürültüsü); 0 = kapalı
     root_health:
       enabled: true                      # §5.18 (3) makalede YOK; eklendi (E5 "NF-MTAR-paper" için kapatılır)
       depletion_threshold: 0.9           # §5.18 tükenme > 0.9
