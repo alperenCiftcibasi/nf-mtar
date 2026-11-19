@@ -124,15 +124,35 @@ def test_traffic_trigger_in_simulation_only_for_dynamic_root():
     assert run_simulation(cfg, "B1", seed=2).traffic_triggers == []
 
 
-def test_root_health_trigger_off_logs_dead_root_with_event_trigger():
-    """Root sağlığı tetikleyicisi kapalı (E5 NF-MTAR-paper): ölü root R = ∞ ile ve min_dwell geçmişse değişir; log'daki
-    tetikleyici türü root_health DEĞİL, değerlendirmeyi başlatan olaydır (burada düğüm ölümü), kural dead_root.
-    Arıza 65 s'de: üç topolojide de min_dwell (R'de 2·30 = 60 s) dolmuş."""
-    cfg = load_config(overrides={"simulation.duration_s": 80.0, "run.warm_up_s": 5.0, "traffic.load_multiplier": 0.25,
-                                 "network.n_nodes": 60, "controller.triggers.root_health.enabled": False})
-    res = run_simulation(cfg, "B3", seed=2, kill_roots_at_s=65.0)
+def test_e5_dead_root_rule_trigger_off_and_on():
+    """§5.19 E5 ölü root kuralı (18 Kasım). Arıza 15,5 s'de (R'nin min_dwell'i 2·30 = 60 s, dolmamış).
+    Root sağlığı tetikleyicisi KAPALI: ölüm anında yol yeniden hesaplanmaz ve root değişmez; ölümle sonraki tur arasında
+    ölü düğüme yönelen paketler node_dead düşer (L ve R'de sınanır; E'nin turu 0,5 s sonra); ilk periyodik/trafik
+    turunda (en geç π11 sonra) min_dwell dolmamış olsa bile yeni root seçilir (kural dead_root; R'de tur 30 s < 60 s
+    dwell). AÇIK: yeni root ölüm anında (root_health) seçilir."""
+    base = {"simulation.duration_s": 50.0, "run.warm_up_s": 5.0, "traffic.load_multiplier": 0.25,
+            "network.n_nodes": 60}
+    t_kill = 15.5
+    cfg = load_config(overrides={**base, "controller.triggers.root_health.enabled": False})
+    res = run_simulation(cfg, "B3", seed=2, kill_roots_at_s=t_kill)
+    killed = {u for t, u in res.deaths if math.isclose(t, t_kill)}
+    assert len(killed) == 3
+    assert not [rc for rc in res.root_changes if math.isclose(rc["time_s"], t_kill)]     # ölüm anında karar yok
     dead = [rc for rc in res.root_changes if rc["rule"] == "dead_root"]
-    assert sorted(rc["topology"] for rc in dead) == ["E", "L", "R"]
-    assert {rc["old"] for rc in dead} <= {u for _, u in res.deaths}
-    assert all(math.isclose(rc["time_s"], 65.0) and rc["trigger"] == "node_death" for rc in dead)
-    assert not [rc for rc in res.root_changes if rc["trigger"] == "root_health"]
+    assert sorted(rc["topology"] for rc in dead) == ["E", "L", "R"] and {rc["old"] for rc in dead} == killed
+    for rc in dead:
+        pi11 = cfg.policy.for_topology(rc["topology"]).route_update_s
+        assert t_kill < rc["time_s"] <= t_kill + pi11 + 1e-9 and rc["trigger"] in ("periodic", "traffic")
+        lost = [ps for ps in res.packets if ps.status == "node_dead"
+                and ps.topology.value == rc["topology"] and t_kill <= ps.end_s <= rc["time_s"]]
+        if pi11 >= 5:                                                  # E'de pencere 0,5 s: düşük yükte paket gelmeyebilir
+            assert lost, rc["topology"]                                # tablolar eski: ölü root'a yönelenler düştü
+        later = [ps for ps in res.packets if ps.topology.value == rc["topology"] and ps.delivered
+                 and ps.packet.created_s > rc["time_s"]]
+        assert later                                                   # yeni root ile kurtarma
+
+    cfg_on = load_config(overrides=base)
+    res_on = run_simulation(cfg_on, "B3", seed=2, kill_roots_at_s=t_kill)
+    health = [rc for rc in res_on.root_changes if rc["rule"] == "dead_or_no_edge_path"]
+    assert sorted(rc["topology"] for rc in health) == ["E", "L", "R"]
+    assert all(math.isclose(rc["time_s"], t_kill) and rc["trigger"] == "root_health" for rc in health)

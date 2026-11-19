@@ -33,6 +33,9 @@ Uygulanan kararlar:
   `ttl_drops` ile ayrıca sayılır (beklenen 0).
 - §5.14 x2: her atlama bitince çerçeve aralıkları (`HopResult.tx_intervals`) göndericinin ve sensör alıcının
   `RadioBusyTracker`'ına eklenir (radyo meşguliyeti, kayan pencere W); dinamik root politikası x2'yi buradan okur.
+- §5.19 E5 ölü root kuralı: root politikası `defer_death_updates` derse (dinamik root, root sağlığı tetikleyicisi
+  kapalı) ölüm anında yollar yeniden hesaplanmaz; ölü düğüme yönelen paketler node_dead düşer, yollar ve root sonraki
+  periyodik/trafik turunda güncellenir. Aksi halde §5.10a (ölümde hemen).
 - §5.10a enerji: `radio.send_packet` her parça denemesinde gönderici (E_elec·b + ε_amp·b·d²) ve alıcı (E_elec·b)
   enerjisini düşürür; edge router sınırsız. Enerjisi biten düğüm ölür (`NodeState.consume`): kuyruğu node_dead ile
   boşaltılır, olay kaydedilir ve BÜTÜN topolojilerin yolları hemen yeniden hesaplanır (strict modda diğer topolojilerin
@@ -677,6 +680,8 @@ class Simulation:
         for ps in self.queues[u].drain():
             self._drop(ps, DROP_NODE_DEAD, u)
         log.info("t=%.3f: düğüm %d (%s) öldü; %d. ölüm (§5.10a)", self.now, u, node.topology, len(self.deaths))
+        if getattr(self.root_policy, "defer_death_updates", False):
+            return            # §5.19 E5: root sağlığı tetikleyicisi kapalı -> yollar sonraki tetikleyici turuna kadar eski
         for t in TOPOLOGY_ORDER:
             self._update_routes(t, reason=f"death:{u}")
 

@@ -14,6 +14,10 @@ Uygulanan kararlar:
   VE (confidence_gate kapalı VEYA güven(r*) ≥ conf_min). Varsayılan ε = 0,2 (§5.21, K9), güven kapısı kapalı.
 - Skor (§5.14): engine/fuzzy.extract_features (nominal trafik hızları §5.6, radyo meşguliyeti x2 ve enerji) +
   FuzzyStrategy.score_batch; rank (§5.17): engine/rank.py, H = EdgeReach.hops, C = EdgeReach.cost.
+- §5.19 E5 ölü root kuralı (18 Kasım): ölü (ya da edge yolu kopmuş) root, fark edildiği İLK turda min_dwell'den
+  bağımsız değiştirilir. Root sağlığı tetikleyicisi açıkken fark edilme anı ölüm anıdır; kapalıyken sonraki
+  periyodik/trafik turu: `defer_death_updates` = True ile simülasyon ölüm anında yolları yeniden hesaplamaz, ölü
+  düğüme yönelen paketler node_dead olarak düşer.
 - Her değişim `changes` listesine yazılır (zaman, topoloji, eski/yeni, R farkı, tetikleyici türü, kural);
   simülasyonun root değişim logu aynı tetikleyici türünü `last_decision`'dan alır.
 """
@@ -118,6 +122,9 @@ class DynamicRootPolicy:
         health = ctl["triggers"]["root_health"]
         self.health_enabled = bool(health["enabled"])
         self.depletion_threshold = float(health["depletion_threshold"])
+        # §5.19 E5 ölü root kuralı: root sağlığı tetikleyicisi kapalıyken controller yalnızca tetikleyicilerde
+        # (periyodik/trafik) hareket eder; simülasyon ölüm anında yolları yeniden hesaplamaz (tablolar eski kalır).
+        self.defer_death_updates = not self.health_enabled
         self.traffic_trigger = bool(ctl["triggers"]["traffic"]["enabled"])   # §5.18 (2); simülasyon izler
         self.weights = {t: tuple(cfg.rank["weights"][t.value]) for t in Topology}
         self.last_change: dict[Topology, float] = {}
@@ -169,10 +176,10 @@ class DynamicRootPolicy:
         elif current not in reach.candidates:                      # root öldü veya edge yolu yok
             if self.health_enabled:
                 trig, rule = "root_health", "dead_or_no_edge_path"
-            elif since >= self.min_dwell_s(topology):              # tetikleyici kapalı: R(ölü) = ∞, dwell geçerli
-                trig, rule = trigger, "dead_root"
-            else:
-                return current
+            else:                                                  # tetikleyici kapalı (E5 NF-MTAR-paper): ölü root
+                # fark edildiği ilk turda (periyodik/trafik) min_dwell'den bağımsız değişir (§5.19 ölü root kuralı;
+                # min_dwell yalnızca canlı root'lar arası geçişi sınırlar)
+                trig, rule = trigger, ("dead_root" if not net.nodes[current].alive else "no_edge_path")
         elif self.health_enabled and net.nodes[current].depletion > self.depletion_threshold:
             trig, rule = "root_health", "depletion"
         else:
