@@ -9,7 +9,7 @@ from nfmtar.config import load_config
 from nfmtar.engine.fuzzy import FuzzyEngine, FuzzyParams, FuzzySpec
 from nfmtar.engine.interpretability import interpretability_report
 from nfmtar.engine.oracle import oracle_components, oracle_scores
-from nfmtar.engine.trainer import evaluate, train
+from nfmtar.engine.trainer import coverage_penalty, evaluate, train
 from nfmtar.network.radio import RadioModel
 from nfmtar.router import Router
 from tests.test_router import make_net
@@ -91,3 +91,32 @@ def test_interpretability_expert_and_corrupted(spec):
     bad.y = bad.y[::-1].copy()                            # sonuçlar ters
     r1 = interpretability_report(spec, bad)
     assert r1["order_violations"] == 1 and r1["monotonicity_violation"] > 0.5 and r1["dev_y"] > 0
+
+
+def test_coverage_penalty_zero_when_covered_positive_when_narrowed(spec):
+    """§5.22 menteşe kapsama cezası: uzman parametrelerinde (komşu terimler 0,5'te kesişir) ceza 0; σ'lar yarıya
+    indirilince ara noktalarda max μ < 0,5 olur ve ceza > 0; σ küçüldükçe ceza artar."""
+    import torch
+
+    p = FuzzyParams.expert(spec)
+    c = [torch.as_tensor(x) for x in p.centers]
+    full = coverage_penalty(c, [torch.as_tensor(s) for s in p.sigmas])
+    assert float(full) < 1e-12
+    half = coverage_penalty(c, [torch.as_tensor(s) * 0.5 for s in p.sigmas])
+    quarter = coverage_penalty(c, [torch.as_tensor(s) * 0.25 for s in p.sigmas])
+    assert 0 < float(half) < float(quarter)
+    assert interpretability_report(spec, p)["coverage_min"] >= 0.5 - 1e-9
+
+
+def test_anchored_cov_keeps_coverage_better_than_anchored(spec):
+    """§5.22 anchored+cov: aynı sentetik veride (σ daraltmayı ödüllendiren keskin hedef) kapsama cezası, anchored'a göre
+    eğitim sonrası kapsamayı daha yüksek tutar; mod adı geçerli."""
+    rng = np.random.default_rng(0)
+    X = rng.random((3000, 5))
+    y = 0.1 + 0.9 * (np.sin(12 * X[:, 2]) > 0)                         # x3'te keskin basamaklar
+    kw = dict(lam=1e-3, max_epochs=40, patience=40, batch_size=512, seed=0)
+    a = train(spec, X[:2400], y[:2400], X[2400:], y[2400:], reg_mode="anchored", **kw)
+    b = train(spec, X[:2400], y[:2400], X[2400:], y[2400:], reg_mode="anchored+cov", **kw)
+    ca = interpretability_report(spec, a.params)["coverage_min"]
+    cb = interpretability_report(spec, b.params)["coverage_min"]
+    assert cb > ca

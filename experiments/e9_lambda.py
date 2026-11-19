@@ -52,8 +52,10 @@ def run_one(task: tuple) -> dict:
     if mode == "B3":
         p, ep = FuzzyParams.expert(spec), 0
     else:
+        cov = load_config().training["loss"]["coverage"]                 # §5.22 anchored+cov
         res = train(spec, X[tr], y[tr], X[va], y[va], reg_mode=mode, lam=lam, max_epochs=epochs, seed=rep,
-                    batch_size=batch, patience=patience)
+                    batch_size=batch, patience=patience, gamma_cov=float(cov["gamma_cov"]),
+                    cov_eps=float(cov["epsilon"]), cov_grid=int(cov["grid_points"]))
         p, ep = res.params, res.epochs
         if tag:
             p.save_json(PROJECT_ROOT / "results" / "models" / f"e9_{tag}_{mode}_{lam:g}_r{rep}.json")

@@ -282,6 +282,10 @@ training:                                # §5.16 nöral öğrenme (ANFIS tarzı
   loss:
     reg_mode: anchored                   # §5.16 {anchored, zero_l2, none}; anchored: (λ/2) Σ (θ - θ0)², θ0 = uzman başlangıcı
     lambda_reg: 0.001                    # §5.16 λ varsayılan 1e-3
+    coverage:                            # §5.22 anchored+cov: L_cov = γ_cov · Σ_girdi mean_x max(0, ε − max_j μ_j(x))²
+      gamma_cov: 1.0                     # §5.22 γ_cov = 1
+      epsilon: 0.5                       # §5.22 ε-tamlık koşulu (§5.20 kapsama eşiğiyle aynı)
+      grid_points: 201                   # §5.22 [0,1] ızgarası
   optimizer:
     type: sgd                            # §5.16
     momentum: 0.9                        # §5.16

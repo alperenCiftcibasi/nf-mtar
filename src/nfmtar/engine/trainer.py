@@ -5,6 +5,9 @@
     anchored: R = Σ (θ − θ0)²  (θ0 = §5.14 uzman parametreleri; c, σ, y üzerinde)
     zero_l2:  R = Σ θ²
     none:     R = 0
+    anchored+cov: anchored + menteşe kapsama cezası (§5.22, ε-tamlık):
+              L_cov = γ_cov · Σ_girdi mean_{x∈ızgara} max(0, ε − max_j μ_j(x))²  (ε = 0,5; ızgara 201 nokta; γ_cov = 1)
+              Kapsama koşulu sağlanınca (her x'te en az bir terim ≥ ε) ceza 0; σ daralıp boşluk açılınca pozitif.
   (θ doğal parametreler c, σ, y üzerinden; ham s, u üzerinden değil.)
 - Optimizasyon: tam yığın; Adam (lr 0,01; E9-lite süre kısıtı nedeniyle, §5.16'daki SGD-momentum yerine — config'e bağlı
   değil, fonksiyon argümanı) veya SGD momentum 0,9 (η = 0,01·exp(−epoch/500)); en çok max_epochs; doğrulama MSE'si
@@ -25,7 +28,7 @@ from scipy.stats import spearmanr
 from nfmtar.engine.fuzzy import FuzzyParams, FuzzySpec
 from nfmtar.engine.fuzzy_torch import TorchFuzzyEngine
 
-REG_MODES = ("anchored", "zero_l2", "none")
+REG_MODES = ("anchored", "zero_l2", "none", "anchored+cov")
 
 
 @dataclass
@@ -40,10 +43,23 @@ def _theta(model: TorchFuzzyEngine) -> list[torch.Tensor]:
     return [*model.centers, *model.sigmas(), model.consequents()]
 
 
+def coverage_penalty(centers, sigmas, eps: float = 0.5, grid_points: int = 201) -> torch.Tensor:
+    """§5.22 menteşe kapsama cezası (γ_cov hariç): Σ_girdi mean_x max(0, ε − max_j μ_j(x))², μ = exp(−((x − c)/σ)²)."""
+    ref = centers[0]
+    x = torch.linspace(0.0, 1.0, grid_points, dtype=ref.dtype, device=ref.device)
+    total = torch.zeros((), dtype=ref.dtype, device=ref.device)
+    for c, s in zip(centers, sigmas):
+        mu = torch.exp(-((x[:, None] - c[None, :]) / s[None, :]) ** 2)        # (ızgara, terim)
+        gap = torch.clamp(eps - mu.max(dim=1).values, min=0.0)
+        total = total + (gap ** 2).mean()
+    return total
+
+
 def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored", lam: float = 1e-2,
           max_epochs: int = 200, patience: int = 20, optimizer: str = "adam", lr: float = 0.01,
           sigma_min: float = 1e-3, seed: int = 0, batch_size: int | None = None,
-          eval_chunk: int = 20_000) -> TrainResult:
+          eval_chunk: int = 20_000, gamma_cov: float = 1.0, cov_eps: float = 0.5,
+          cov_grid: int = 201) -> TrainResult:
     """§5.16 kaybıyla eğitim; uzman parametrelerinden başlar.
 
     batch_size None: tam yığın (belirlenimci). Verilirse her epoch'ta `seed` ile karıştırılan mini yığınlar (E9 tekrarları
@@ -76,8 +92,10 @@ def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored",
             opt.zero_grad()
             f = model(Xt[idx])["f"]
             loss = 0.5 * torch.mean((yt[idx] - f) ** 2)
-            if reg_mode == "anchored":
+            if reg_mode in ("anchored", "anchored+cov"):
                 loss = loss + 0.5 * lam * sum(((a - b) ** 2).sum() for a, b in zip(_theta(model), theta0))
+            if reg_mode == "anchored+cov":
+                loss = loss + gamma_cov * coverage_penalty(list(model.centers), model.sigmas(), cov_eps, cov_grid)
             elif reg_mode == "zero_l2":
                 loss = loss + 0.5 * lam * sum((a ** 2).sum() for a in _theta(model))
             loss.backward()
