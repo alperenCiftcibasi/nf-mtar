@@ -4,7 +4,7 @@ Bu dosya, projenin bağlamını ve alınmış bütün tasarım kararlarını iç
 Kod yazarken bu kararlara uy; bir karardan sapman gerekirse önce sor.
 "BEKLEMEDE" işaretli bölümler henüz netleşmedi; o kısımları uydurma, sor.
 
-Son güncelleme: 18 Kasım 2026 (teslim sonrası plan, §5.21)
+Son güncelleme: 18 Kasım 2026 akşam (teşhis kararları, §5.22)
 
 ---
 
@@ -366,7 +366,7 @@ merkez-ortalama durulaştırıcıya indirgenir).
 | Girdi | Tanım | Terimler | Yön |
 |---|---|---|---|
 | x1 talep | Aynı topolojideki 2-atlama komşuluğunda üretilen trafik hızı / topoloji toplam trafik hızı | 5 | Yüksek = iyi |
-| x2 kullanım | Kuyruk doluluk oranı | 5 | Yüksek = kötü |
+| x2 kullanım | Radyo meşguliyet oranı: son W = 10 s'de düğümün gönderim + alım süresi / W (18 Kasım; önceki tanım anlık kuyruk doluluğuydu, verinin %99'unda 0 çıktı) | 5 | Yüksek = kötü |
 | x3 tükenme | 1 − kalan_enerji / başlangıç_enerjisi | 5 | Yüksek = kötü |
 | x4 link kalitesi | Topoloji içi komşulara ortalama PRR | 2 | Yüksek = iyi |
 | x5 bağlantısallık | Topoloji içi komşu sayısı / 15, 1'de kırp | 3 | Yüksek = iyi |
@@ -538,6 +538,11 @@ gecikme–boyut eğimi (ms/bayt); teorik tek atlama eğimi 8/250000 s = 0.032 ms
 - Yöntemler: B1 (arıza anında yeni sabit root), NF-MTAR (root_health_trigger açık),
   NF-MTAR-paper (root_health_trigger kapalı: ölü root yalnızca sonraki periyodik/trafik tetikleyicide fark edilir;
   R(ölü root) = ∞; min_dwell kuralı geçerli)
+- Ölü root kuralı (18 Kasım): ölü root, fark edildiği İLK karar turunda min_dwell'den bağımsız değiştirilir
+  (ölü root'u tutmak seçenek değildir; min_dwell yalnızca canlı root'lar arası geçişi sınırlar). Fark edilme anı:
+  root_health_trigger açıkken ölüm anı; kapalıyken sonraki periyodik/trafik turu. Tetikleyici kapalıyken ölüm
+  anında yollar YENİDEN HESAPLANMAZ (makaledeki controller yalnızca tetikleyicilerde hareket eder): tablolar sonraki
+  tura kadar eski kalır, ölü düğüme yönelen paketler `node_dead` olarak düşer. Tetikleyici açıkken §5.10a geçerli.
 - Ölçütler: topoloji başına kurtarma süresi (arızadan sonra ilk başarılı uçtan uca teslim), arıza penceresinde
   (300–330 s) kayıp paket sayısı, pencere PDR'si
 - 30 seed; canlı demoda da kullanılacak (tek tuşla root öldürme)
@@ -615,6 +620,30 @@ P1 Katkı: zengin veri → tam E9 (λ ∈ {1e-3, 3e-3, 1e-2, 3e-2, 1e-1} × 3 mo
 P2 E1 tam: 5 yöntem × 3 yük × 30 seed (seed 11–40), ε = 0,2; stats + paper_comparison.
 P3 E5 tam (30 seed; B1, NF-MTAR, NF-MTAR-paper = root sağlığı tetikleyicisi kapalı), E8 ömür, E2, E4.
 P4 Canlı demo scripti: bulanık skor + baskın kural; tek komutla root öldürme ve yeniden seçim logu.
+
+### 5.22 Teşhis sonuçları ve kararlar (18 Kasım, P1 ilk yarı)
+**Veri:** zengin veri (seed 101–120, 2 J, ≤ 1800 s, 3 yük, B1+B3): 1,94M satır, 41.974 grup. x3 artık değişiyor
+(grup içi std 0,013 → 0,148); x2 (anlık kuyruk doluluğu) satırların %99'unda 0 → tanım değişti (§5.14, radyo meşguliyeti).
+**Top-1 teşhisi:** kâhin varyansının %51'i gecikme, %41'i dayanıklılık, %8'i teslim bileşeninden; grup içi min-max
+normalizasyonu küçük farkları tam aralığa yayıyor. Kısıtsız modeller (HistGB/RF) bile x1–x5'ten kâhinin ancak
+R² ≈ 0,33–0,38'ini açıklıyor; doğrulama pişmanlığı: B3 0,216, eğitilmiş 0,223, HistGB 0,251, HistGB + grup bağlamı 0,192,
+rastgele 0,403. **Bulgu: uzman bulanık sistem (B3), beş girdinin taşıdığı bilginin tavanına zaten yakın; öğrenmenin
+kazanabileceği alan küçük.** Raporda ve savunmada kullanılacak (makalenin büyük öğrenme kazancı iddiası bu girdilerle
+olası görünmüyor; öğrenme hedefi tanımlanmadan değerlendirilemez).
+**Kararlar:**
+- Kâhin DEĞİŞMEZ (önceden tanımlandı). Duyarlılık: sabit ölçekli kâhin (gecikme/π3, dayanıklılık/ufuk, ikisi [0,1]'e
+  kırpılmış; grup içi min-max yok) yalnızca seçilen koşullar için çevrimdışı ikinci etiket olarak.
+- Değerlendirme: ANA ölçütler pişmanlık ve Spearman; yardımcı: top-1 ve "yakın-en-iyi oranı" (seçilen adayın kâhin
+  skoru ≥ en iyi − 0,05). λ seçimi doğrulama pişmanlığıyla (önceden sabit).
+- Kapsama: kayba menteşe cezası eklenir (ε-tamlık koşulu, ε = 0,5):
+  L_cov = γ_cov · Σ_girdi mean_{x∈ızgara(201)} max(0, 0,5 − max_j μ_j(x))², γ_cov = 1 (config). Koşul sağlanınca 0.
+  Yeni mod: anchored+cov. σ alt sınırı seçilmedi (merkezler sabitken bile kapsamayı ancak ~0,06'da garanti eder).
+- E9 koşulları güncellendi: {none, zero_l2, anchored, anchored+cov}; λ ∈ {1e-3, 3e-3, 1e-2, 3e-2, 1e-1} (none hariç);
+  3 tekrar; eğitim 200k satırlık sabit alt örnekle; doğrulama ve test tam küme (parçalı değerlendirme).
+- NF-MTAR ana modeli (önceden sabit kural): anchored+cov, λ = doğrulama pişmanlığı en küçük olan.
+- x2 tanımı değişti → B3 ve NF-MTAR'ın 18 Kasım öncesi sonuçları geliştirme sonucu sayılır; resmi sonuçlar seed 11+ ile.
+- Gelecek çalışma notu: grup bağlamı (adayın grup içindeki göreli değeri) R²'yi 0,38 → 0,49'a çıkarıyor; göreli
+  girdiler bulanık motor için ayrı bir tasarım, bu projede uygulanmayacak.
 
 ## 6. BEKLEMEDE
 
