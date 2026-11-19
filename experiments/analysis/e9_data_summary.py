@@ -5,8 +5,12 @@ yüzdelikleri, tam sıfır oranı ve grup içi std (aynı ağ durumu × topoloji
 root seçimi grup içi sıralama olduğu için asıl bilgi taşıyan değişkenlik budur). Ayrıca satır, grup, seed sayısı ve
 ortalama grup boyutu.
 
-Çıktı: results/tables/e9_data_summary.csv
-Kullanım: python experiments/analysis/e9_data_summary.py [--data data/e9_lite.npz data/e9_rich.npz]
+x2'nin tanımı 18 Kasım'da değişti (§5.14, §5.22): e9_lite ve e9_rich_v1'de x2 = anlık kuyruk doluluğu, e9_rich'te
+x2 = radyo meşguliyet oranı (son 10 s'de gönderim + alım / 10 s). Yeni veride anlık kuyruk doluluğu tanılama sütunu
+olarak tutulur ve "queue_occupancy (diag)" satırında gösterilir. Ayrıca x2_comparison: x2 satırları yan yana.
+
+Çıktı: results/tables/e9_data_summary.csv, results/tables/e9_x2_comparison.csv
+Kullanım: python experiments/analysis/e9_data_summary.py [--data data/e9_lite.npz data/e9_rich_v1.npz data/e9_rich.npz]
 """
 
 from __future__ import annotations
@@ -39,7 +43,8 @@ def summarize(path: Path) -> list[dict]:
     meta = {"dataset": path.stem, "rows": len(y), "groups": len(np.unique(g)), "seeds": len(np.unique(d["seed"])),
             "mean_group_size": len(y) / len(np.unique(g))}
     rows = []
-    for name, v in [*((n, X[:, i]) for i, n in enumerate(FEATURE_NAMES)), ("y_oracle", y)]:
+    extra = [("queue_occupancy (diag)", d["queue_occupancy"])] if "queue_occupancy" in d.files else []
+    for name, v in [*((n, X[:, i]) for i, n in enumerate(FEATURE_NAMES)), *extra, ("y_oracle", y)]:
         p5, p50, p95 = np.percentile(v, [5, 50, 95])
         rows.append({**meta, "variable": name, "mean": v.mean(), "std": v.std(), "p5": p5, "p50": p50, "p95": p95,
                      "frac_zero": float(np.mean(v == 0)), "within_group_std": within_group_std(v, g)})
@@ -48,7 +53,7 @@ def summarize(path: Path) -> list[dict]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data", nargs="+", default=["data/e9_lite.npz", "data/e9_rich.npz"])
+    parser.add_argument("--data", nargs="+", default=["data/e9_lite.npz", "data/e9_rich_v1.npz", "data/e9_rich.npz"])
     args = parser.parse_args(argv)
     rows = []
     for p in args.data:
@@ -63,6 +68,14 @@ def main(argv: list[str] | None = None) -> int:
     pd.set_option("display.width", 250)
     print(df.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     print(f"-> {TABLE}")
+    x2 = df[df["variable"].isin(["x2", "queue_occupancy (diag)"])].copy()
+    x2.insert(2, "x2_definition", [("radio busy ratio (W = 10 s)" if (r.dataset == "e9_rich" and r.variable == "x2")
+                                    else "instantaneous queue occupancy") for r in x2.itertuples()])
+    x2 = x2[["dataset", "variable", "x2_definition", "mean", "std", "p5", "p50", "p95", "frac_zero", "within_group_std"]]
+    path = TABLE.with_name("e9_x2_comparison.csv")
+    x2.to_csv(path, index=False, float_format="%.5f")
+    print(x2.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+    print(f"-> {path}")
     return 0
 
 

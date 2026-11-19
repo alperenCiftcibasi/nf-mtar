@@ -16,6 +16,8 @@ Zengin veri (§5.21: x2 ve x3 değişsin diye düşük başlangıç enerjisi, uz
 node (n,), topology (n; 0/1/2 = E/L/R), load (n,), method (n; --methods sırasındaki indeks), time_s (n,),
 components (n, 3; kâhinin ağırlıklı bileşenleri teslim / gecikme / dayanıklılık, toplamları ham skor; §5.21 teşhisi),
 queue_occupancy (n; anlık kuyruk doluluğu, tanılama; x2 18 Kasım'dan beri radyo meşguliyeti, §5.14),
+components_raw (n, 3; kâhinin ham bileşenleri: teslim olasılığı, gecikme s, dayanıklılık s — normalizasyonsuz;
+§5.22 sabit ölçekli kâhin duyarlılığı yeniden simülasyonsuz bunlardan hesaplanır),
 split (n; 0 eğitim, 1 doğrulama, 2 test); ayrıca methods (yöntem adları).
 
 Kullanım: python experiments/build_training_data.py [--seeds 1 2 3 4 5 6] [--loads 0.5] [--methods B1]
@@ -78,20 +80,21 @@ def collect(task: tuple) -> dict[str, np.ndarray]:
             for v in sorted(reach.candidates):
                 i = idx[v]
                 rows.append((*feats[v].as_array(), oc["score"][i], seed, gid, v, ti, load, method_idx, s.now,
-                             oc["w_delivery"][i], oc["w_latency"][i], oc["w_resilience"][i], occ[v]))
+                             oc["w_delivery"][i], oc["w_latency"][i], oc["w_resilience"][i], occ[v],
+                             oc["delivery"][i], oc["latency_s"][i], oc["resilience"][i]))
         snap[0] += 1
         return not (until_dead and alive_topologies == 0)          # False -> simülasyon durur (ömür sonu)
 
     sim.snapshot_interval_s = interval
     sim.snapshot_hook = hook
     sim.run()
-    a = np.array(rows, dtype=float).reshape(-1, 17)
+    a = np.array(rows, dtype=float).reshape(-1, 20)
     print(f"seed {seed} load {load} {method}: {snap[0]} snapshots, {len(a)} rows, ended t={sim.now:.0f} s, "
           f"{len(sim.deaths)} deaths", flush=True)
     return {"X": a[:, :5], "y": a[:, 5], "seed": a[:, 6].astype(int), "group": a[:, 7].astype(np.int64),
             "node": a[:, 8].astype(int), "topology": a[:, 9].astype(int), "load": a[:, 10],
             "method": a[:, 11].astype(int), "time_s": a[:, 12], "components": a[:, 13:16],
-            "queue_occupancy": a[:, 16]}
+            "queue_occupancy": a[:, 16], "components_raw": a[:, 17:20]}
 
 
 def main(argv: list[str] | None = None) -> int:

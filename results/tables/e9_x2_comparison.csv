@@ -1,0 +1,5 @@
+dataset,variable,x2_definition,mean,std,p5,p50,p95,frac_zero,within_group_std
+e9_lite,x2,instantaneous queue occupancy,0.00249,0.03305,0.00000,0.00000,0.00000,0.99023,0.01522
+e9_rich_v1,x2,instantaneous queue occupancy,0.00415,0.05444,0.00000,0.00000,0.00000,0.99074,0.02109
+e9_rich,x2,radio busy ratio (W = 10 s),0.02065,0.05894,0.00000,0.00544,0.07711,0.11664,0.04492
+e9_rich,queue_occupancy (diag),instantaneous queue occupancy,0.00413,0.05432,0.00000,0.00000,0.00000,0.99072,0.02108
