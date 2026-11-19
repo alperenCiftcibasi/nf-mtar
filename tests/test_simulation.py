@@ -343,3 +343,28 @@ def test_phi_in_class_metrics_and_runs_row(short_b1):
     # ısınma sonrası enerji, bütün koşunun enerjisinden küçük (ısınmada da tüketim var)
     assert sum(res.energy_consumed_after_warm_up_J().values()) < sum(res.energy_consumed_J().values())
     assert math.isclose(runs_row(res, "t")["phi"], float(np.mean(phis)))
+
+
+def test_x2_radio_busy_ratio_from_simulation(cfg):
+    """§5.14 x2: simülasyon her atlamanın çerçeve aralıklarını gönderici ve sensör alıcıya ekler. Kısa B3 koşusunda
+    oranlar [0,1]; trafik taşıyan düğümlerin oranı > 0; hiç iletmeyen/almayan düğüm 0; controller x2'yi bu
+    izleyiciden okur (aynı nesne) ve extract_features x2'si izleyicinin değerine eşit."""
+    from nfmtar.engine.fuzzy import FuzzySpec, extract_features, nominal_rates_pps
+    from nfmtar.network.partition import build_partitioned_network
+    from nfmtar.traffic import build_traffic_trace
+
+    c = load_config(overrides={"simulation.duration_s": 20.0, "run.warm_up_s": 2.0, "network.n_nodes": 60,
+                               "traffic.load_multiplier": 0.5})
+    pn = build_partitioned_network(c, 3)
+    sim = Simulation(c, pn, build_traffic_trace(c, pn.net, 3), "B3")
+    assert sim.root_policy.busy_tracker is sim.busy
+    sim.run()
+    t = sim.now
+    ratios = sim.busy.busy_ratios(pn.net.sensor_ids, t)
+    assert all(0.0 <= r <= 1.0 for r in ratios.values())
+    assert max(ratios.values()) > 0.0
+    roots = [r for r in sim.routes.values() if r.root is not None]
+    assert all(ratios[rs.root] > 0 for rs in roots)                         # root bütün trafiği taşır
+    spec = FuzzySpec.from_config(c)
+    feats = extract_features(spec, pn.net, pn.part, "E", nominal_rates_pps(c, pn.net), sim.radio.prr, ratios)
+    assert all(f.x2 == pytest.approx(ratios[v]) for v, f in feats.items())

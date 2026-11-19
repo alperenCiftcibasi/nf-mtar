@@ -236,7 +236,7 @@ fuzzy:                                   # §5.14 bulanık çıkarım motoru
   system: sugeno_zero_order              # §5.14 sıfırıncı dereceden Takagi-Sugeno (Denk. 12 merkez-ortalamaya indirgenir)
   inputs:                                # §5.14 NodeFeatures; hepsi sabit normalizasyonla [0,1]
     x1_demand:        {n_terms: 5, direction: high_good, neighborhood_hops: 2}   # 2-atlama komşuluk trafik hızı / topoloji toplam hızı
-    x2_utilization:   {n_terms: 5, direction: high_bad}                          # kuyruk doluluk oranı
+    x2_utilization:   {n_terms: 5, direction: high_bad, busy_window_s: 10.0}     # radyo meşguliyeti: son W s'de gönderim+alım süresi / W (§5.14, 18 Kasım)
     x3_depletion:     {n_terms: 5, direction: high_bad}                          # 1 - kalan_enerji / başlangıç_enerjisi
     x4_link_quality:  {n_terms: 2, direction: high_good}                         # topoloji içi komşulara ortalama PRR
     x5_connectivity:  {n_terms: 3, direction: high_good, max_neighbors: 15}      # topoloji içi komşu sayısı / 15, 1'de kırp

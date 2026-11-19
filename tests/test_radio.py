@@ -17,6 +17,7 @@ from nfmtar.network.radio import (
     LOSS_SENDER_DEAD,
     BackoffPolicy,
     Channel,
+    RadioBusyTracker,
     RadioModel,
     run_mac_sessions,
     saturated_sender,
@@ -436,3 +437,28 @@ def test_run_mac_sessions_is_reproducible():
         return [(k, v.success, v.t_end, v.backoff_s) for k, v in sorted(res.items())]
 
     assert run(11) == run(11) and run(11) != run(12)
+
+
+# ----------------------------------------------------------------------------- §5.14 x2 radyo meşguliyeti
+
+
+def test_radio_busy_tracker_idle_continuous_partial_and_window():
+    """x2 (§5.14, 18 Kasım): boşta 0; W boyunca arka arkaya çerçeve ileten düğümde ~1; 3 s meşgul -> 0,3;
+    pencere kayınca eski aralıklar düşer; eşzamanlı gönderim + alım 1'de kırpılır; değer hep [0,1]."""
+    tr = RadioBusyTracker(10.0)
+    assert tr.busy_ratio(7, 50.0) == 0.0                                   # hiç iletmemiş düğüm
+    airtime, t = 0.004256, 0.0                                             # 127 B çerçeve
+    while t + airtime <= 20.0:
+        tr.add(1, t, t + airtime)
+        t += airtime
+    assert tr.busy_ratio(1, 20.0) == pytest.approx(1.0, abs=1e-3)          # sürekli ileten
+    tr.add(2, 12.0, 15.0)
+    assert tr.busy_ratio(2, 20.0) == pytest.approx(0.3)
+    assert tr.busy_ratio(2, 13.0) == pytest.approx(0.1)                    # kısmi örtüşme (12, 13]
+    assert tr.busy_ratio(2, 26.0) == pytest.approx(0.0)                    # pencere (16, 26]
+    tr.add(3, 0.0, 10.0)
+    tr.add(3, 0.0, 10.0)                                                   # gönderim ve alım üst üste
+    assert tr.busy_ratio(3, 10.0) == 1.0
+    with pytest.raises(ValueError):
+        RadioBusyTracker(0.0)
+    assert RadioBusyTracker.from_config(load_config()).window_s == 10.0

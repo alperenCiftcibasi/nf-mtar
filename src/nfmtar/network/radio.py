@@ -24,6 +24,9 @@ Uygulanan kararlar:
   her çerçeve denemesinde gönderici ve alıcı `NodeState.consume` ile düşer, enerjisi biten düğüm ölür.
   Sınırlılıklar (raporda): ACK çerçeveleri, CCA süresi ve boşta dinleme enerjisi modellenmez.
 - §5.7 π9: kuyruk kapasitesi `PacketQueue`'dadır (graph.py); bu modül yalnızca MAC/PHY'yi modeller.
+- §5.14 x2 (18 Kasım): radyo meşguliyet oranı `RadioBusyTracker` — son W saniyede (kayan pencere) düğümün gönderim +
+  alım süresi / W, [0,1]'e kırpılır. Çerçeve aralıkları `HopResult.tx_intervals`'tan (başarısız denemeler dahil;
+  alıcı da her denemede dinler, enerji modeliyle tutarlı).
 - §5.5 zamanlama kuralı (tek kaynak): bir düğüm sıradaki pakete, önceki paketin son MAC etkinliğinden
   `radio.processing_delay_s` (config) sonra başlar — `RadioModel.next_packet_ready_s`. Aynı değer atlama
   gecikmesinin işlem bileşenidir. `saturated_sender` (AIFS kalibrasyonu) ve simulation.py'deki düğüm servis
@@ -39,7 +42,7 @@ from __future__ import annotations
 
 import heapq
 import math
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Generator, Mapping
 
@@ -523,3 +526,40 @@ def run_mac_sessions(
         heapq.heappush(heap, (t_next, seq, name))
         seq += 1
     return results
+
+
+class RadioBusyTracker:
+    """§5.14 x2: düğüm başına radyo meşguliyet oranı, kayan pencerede (CLAUDE.md §5.14, 18 Kasım).
+
+    busy_ratio(v, t) = Σ |[s, e] ∩ (t − W, t]| / W, (s, e) düğümün gönderdiği veya aldığı çerçevelerin aralıkları;
+    [0,1]'e kırpılır (gizli terminal modellenmediği için iki komşudan eşzamanlı alım 1'i aşabilir). Aralıklar atlama
+    bitince eklenir (simulation._complete_hop); sorgu zamanları artan sıradadır, W'den eski aralıklar atılır.
+    """
+
+    def __init__(self, window_s: float) -> None:
+        if window_s <= 0:
+            raise ValueError("busy window W > 0 olmalı")
+        self.window_s = float(window_s)
+        self._iv: dict[int, deque[tuple[float, float]]] = defaultdict(deque)
+
+    @classmethod
+    def from_config(cls, cfg: Config) -> "RadioBusyTracker":
+        return cls(float(cfg.fuzzy["inputs"]["x2_utilization"].get("busy_window_s", 10.0)))
+
+    def add(self, node_id: int, t_start: float, t_end: float) -> None:
+        """Düğüm [t_start, t_end] boyunca gönderdi ya da aldı."""
+        if t_end > t_start:
+            self._iv[node_id].append((float(t_start), float(t_end)))
+
+    def busy_ratio(self, node_id: int, now: float) -> float:
+        q = self._iv.get(node_id)
+        if not q:
+            return 0.0
+        lo = now - self.window_s
+        while q and q[0][1] <= lo:
+            q.popleft()
+        busy = sum(max(0.0, min(e, now) - max(s, lo)) for s, e in q)
+        return min(1.0, busy / self.window_s)
+
+    def busy_ratios(self, nodes, now: float) -> dict[int, float]:
+        return {v: self.busy_ratio(v, now) for v in nodes}

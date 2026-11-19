@@ -12,7 +12,7 @@ Uygulanan kararlar:
   periyodikle aynı: ε, min_dwell, güven kapısı).
 - Değiştirme kuralı (§5.18): değiştir ⇔ R(current) − R(r*) > ε VE son değişiklikten ≥ min_dwell (= 2 × π11)
   VE (confidence_gate kapalı VEYA güven(r*) ≥ conf_min). Varsayılan ε = 0,2 (§5.21, K9), güven kapısı kapalı.
-- Skor (§5.14): engine/fuzzy.extract_features (nominal trafik hızları §5.6, o anki kuyruk doluluğu ve enerji) +
+- Skor (§5.14): engine/fuzzy.extract_features (nominal trafik hızları §5.6, radyo meşguliyeti x2 ve enerji) +
   FuzzyStrategy.score_batch; rank (§5.17): engine/rank.py, H = EdgeReach.hops, C = EdgeReach.cost.
 - Her değişim `changes` listesine yazılır (zaman, topoloji, eski/yeni, R farkı, tetikleyici türü, kural);
   simülasyonun root değişim logu aynı tetikleyici türünü `last_decision`'dan alır.
@@ -124,6 +124,7 @@ class DynamicRootPolicy:
         self.changes: list[dict[str, Any]] = []
         self.last_rank: dict[Topology, RankResult] = {}
         self.last_decision: dict[str, Any] = {}
+        self.busy_tracker = None              # §5.14 x2: simülasyon RadioBusyTracker'ını bağlar (yoksa x2 = 0)
 
     @classmethod
     def for_method(cls, cfg: Config, method: str, radio, net, params=None) -> "DynamicRootPolicy":
@@ -141,11 +142,11 @@ class DynamicRootPolicy:
         """min_dwell = 2 × π11 (§5.18)."""
         return self.dwell_mult * float(self.cfg.policy.for_topology(topology).route_update_s)
 
-    def rank(self, topology: Topology, net, part, reach) -> RankResult:
-        """Karar: adayların bulanık skoru ve rank'ı (§5.14, §5.17)."""
-        occupancy = {v: net.nodes[v].queue.occupancy for v in reach.candidates}
+    def rank(self, topology: Topology, net, part, reach, now: float = 0.0) -> RankResult:
+        """Karar: adayların bulanık skoru ve rank'ı (§5.14, §5.17); x2 = radyo meşguliyeti (busy_tracker, now)."""
+        util = self.busy_tracker.busy_ratios(reach.candidates, now) if self.busy_tracker is not None else {}
         feats = extract_features(self.strategy.engine.spec, net, part, topology, self.rates, self.prr,
-                                 occupancy, reach.hops)
+                                 util, reach.hops)
         cands = sorted(reach.candidates)
         out = self.strategy.score_batch([feats[v] for v in cands])
         return rank_candidates(cands, out.score, out.confidence, [reach.hops[v] for v in cands],
@@ -159,7 +160,7 @@ class DynamicRootPolicy:
         topology = Topology(topology)
         if not reach.candidates:
             return None
-        rr = self.rank(topology, net, part, reach)
+        rr = self.rank(topology, net, part, reach, now)
         self.last_rank[topology] = rr
         best = rr.best
         since = now - self.last_change.get(topology, -math.inf)

@@ -31,6 +31,8 @@ Uygulanan kararlar:
   sırasında gönderici/alıcısı ölen paketler); in_flight_at_end. Ek koruma: atlama sayısı çizgedeki düğüm sayısını
   aşan paket (ardışık plan değişimlerinden doğabilecek döngü; IPv6 hop limit benzeri) no_route ile düşer ve
   `ttl_drops` ile ayrıca sayılır (beklenen 0).
+- §5.14 x2: her atlama bitince çerçeve aralıkları (`HopResult.tx_intervals`) göndericinin ve sensör alıcının
+  `RadioBusyTracker`'ına eklenir (radyo meşguliyeti, kayan pencere W); dinamik root politikası x2'yi buradan okur.
 - §5.10a enerji: `radio.send_packet` her parça denemesinde gönderici (E_elec·b + ε_amp·b·d²) ve alıcı (E_elec·b)
   enerjisini düşürür; edge router sınırsız. Enerjisi biten düğüm ölür (`NodeState.consume`): kuyruğu node_dead ile
   boşaltılır, olay kaydedilir ve BÜTÜN topolojilerin yolları hemen yeniden hesaplanır (strict modda diğer topolojilerin
@@ -81,6 +83,7 @@ from nfmtar.network.radio import (
     BackoffPolicy,
     Channel,
     HopResult,
+    RadioBusyTracker,
     RadioModel,
     send_packet,
 )
@@ -372,11 +375,14 @@ class Simulation:
         self.router = Router.for_method(cfg, self.radio, method, relay_mode)
         self.relay_mode = self.router.relay_mode
         self.channel = Channel.from_network(self.net, cfg.radio.cs_range_m)
+        self.busy = RadioBusyTracker.from_config(cfg)                # §5.14 x2 radyo meşguliyeti
         if root_policy is None and spec.get("root") == "dynamic":   # §5.12 B3 / NF-MTAR: controller + engine (M9)
             from nfmtar.controller import DynamicRootPolicy
 
             root_policy = DynamicRootPolicy.for_method(cfg, method, self.radio, self.net)
         self.root_policy: RootPolicy = root_policy or StaticRootPolicy()
+        if hasattr(self.root_policy, "busy_tracker"):
+            self.root_policy.busy_tracker = self.busy
         self.traffic_monitor = None                            # §5.18 tetikleyici 2 (yalnızca dinamik root)
         if getattr(self.root_policy, "traffic_trigger", False):
             from nfmtar.controller import TrafficMonitor
@@ -619,6 +625,11 @@ class Simulation:
         ps.csma_busy_events += result.csma_busy_events
         self.energy_tx_J += result.energy_tx_J
         recv = result.receiver
+        recv_is_sensor = not self.net.nodes[recv].is_edge_router
+        for a, b in result.tx_intervals:                              # §5.14 x2: gönderim + alım süresi
+            self.busy.add(v, a, b)
+            if recv_is_sensor:
+                self.busy.add(recv, a, b)
         if self.net.nodes[recv].is_edge_router:       # edge router sınırsız: sensör bütçesinden düşmez (§5.4)
             self.energy_rx_edge_J += result.energy_rx_J
         else:

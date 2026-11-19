@@ -15,6 +15,7 @@ Zengin veri (§5.21: x2 ve x3 değişsin diye düşük başlangıç enerjisi, uz
 Çıktı: data/e9_lite.npz (varsayılan) — X (n, 5), y (n,), seed (n,), group (n; aynı durum × topoloji = bir grup),
 node (n,), topology (n; 0/1/2 = E/L/R), load (n,), method (n; --methods sırasındaki indeks), time_s (n,),
 components (n, 3; kâhinin ağırlıklı bileşenleri teslim / gecikme / dayanıklılık, toplamları ham skor; §5.21 teşhisi),
+queue_occupancy (n; anlık kuyruk doluluğu, tanılama; x2 18 Kasım'dan beri radyo meşguliyeti, §5.14),
 split (n; 0 eğitim, 1 doğrulama, 2 test); ayrıca methods (yöntem adları).
 
 Kullanım: python experiments/build_training_data.py [--seeds 1 2 3 4 5 6] [--loads 0.5] [--methods B1]
@@ -62,33 +63,35 @@ def collect(task: tuple) -> dict[str, np.ndarray]:
 
     def hook(s: Simulation) -> bool:
         net, part = s.net, s.part
-        occ = {v: net.nodes[v].queue.occupancy for v in net.sensor_ids}
+        occ = {v: net.nodes[v].queue.occupancy for v in net.sensor_ids}        # tanılama (eski x2)
+        util = s.busy.busy_ratios(net.sensor_ids, s.now)                       # §5.14 x2 radyo meşguliyeti
         alive_topologies = 0
         for ti, t in enumerate(TOPOLOGY_ORDER):
             reach = router.reach_from_edge(net, part, t)
             if len(reach.candidates) < 2:
                 continue
             alive_topologies += 1
-            feats = extract_features(spec, net, part, t, rates, s.radio.prr, occ, reach.hops)
+            feats = extract_features(spec, net, part, t, rates, s.radio.prr, util, reach.hops)
             oc = oracle_components(cfg, router, net, part, t, reach, rates)
             idx = {v: i for i, v in enumerate(oc["candidates"])}
             gid = ((seed * 10 + load_idx) * 10 + method_idx) * 100000 + snap[0] * 10 + ti
             for v in sorted(reach.candidates):
                 i = idx[v]
                 rows.append((*feats[v].as_array(), oc["score"][i], seed, gid, v, ti, load, method_idx, s.now,
-                             oc["w_delivery"][i], oc["w_latency"][i], oc["w_resilience"][i]))
+                             oc["w_delivery"][i], oc["w_latency"][i], oc["w_resilience"][i], occ[v]))
         snap[0] += 1
         return not (until_dead and alive_topologies == 0)          # False -> simülasyon durur (ömür sonu)
 
     sim.snapshot_interval_s = interval
     sim.snapshot_hook = hook
     sim.run()
-    a = np.array(rows, dtype=float).reshape(-1, 16)
+    a = np.array(rows, dtype=float).reshape(-1, 17)
     print(f"seed {seed} load {load} {method}: {snap[0]} snapshots, {len(a)} rows, ended t={sim.now:.0f} s, "
           f"{len(sim.deaths)} deaths", flush=True)
     return {"X": a[:, :5], "y": a[:, 5], "seed": a[:, 6].astype(int), "group": a[:, 7].astype(np.int64),
             "node": a[:, 8].astype(int), "topology": a[:, 9].astype(int), "load": a[:, 10],
-            "method": a[:, 11].astype(int), "time_s": a[:, 12], "components": a[:, 13:16]}
+            "method": a[:, 11].astype(int), "time_s": a[:, 12], "components": a[:, 13:16],
+            "queue_occupancy": a[:, 16]}
 
 
 def main(argv: list[str] | None = None) -> int:

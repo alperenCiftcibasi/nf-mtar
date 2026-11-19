@@ -407,16 +407,17 @@ def extract_features(
     topology: Any,
     rates_pps: Mapping[int, float],
     prr: Callable[[float], float],
-    queue_occupancy: Mapping[int, float] | None = None,
+    utilization: Mapping[int, float] | None = None,
     hops_to_edge: Mapping[int, int] | None = None,
 ) -> dict[int, NodeFeatures]:
     """Topolojinin canlı sensörleri için NodeFeatures (§5.14); saf fonksiyon (ağı değiştirmez).
 
     net: PhysicalNetwork; part: Partition; rates_pps: düğüm -> üretim hızı (ölçülen veya `nominal_rates_pps`);
-    prr: mesafe -> PRR (RadioModel.prr); queue_occupancy: düğüm -> kuyruk doluluk oranı [0,1] (simülasyondan; yoksa 0);
+    prr: mesafe -> PRR (RadioModel.prr); utilization: düğüm -> radyo meşguliyet oranı [0,1]
+    (simülasyonun `RadioBusyTracker`'ından; yoksa 0);
     hops_to_edge: düğüm -> edge router'a en az atlama (router.EdgeReach.hops; yoksa None).
       x1 = Σ hız(kapalı 2-atlama komşuluğu) / Σ hız(topolojinin canlı sensörleri)
-      x2 = kuyruk doluluğu, [0,1]'e kırpılır
+      x2 = radyo meşguliyeti (son W s'de gönderim + alım süresi / W; 18 Kasım, önceden anlık kuyruk doluluğu), [0,1]
       x3 = 1 − kalan/başlangıç enerji (NodeState.depletion)
       x4 = topoloji içi canlı komşulara ortalama PRR (komşu yoksa 0)
       x5 = min(1, topoloji içi canlı komşu sayısı / max_neighbors)
@@ -429,7 +430,7 @@ def extract_features(
         sub.remove_node(edge_id)          # topoloji içi komşu = canlı sensörler (edge router komşu sayılmaz)
     members = sorted(sub.nodes)
     total_rate = sum(float(rates_pps.get(v, 0.0)) for v in members)
-    occupancy = queue_occupancy or {}
+    occupancy = utilization or {}
     hops = hops_to_edge or {}
     out: dict[int, NodeFeatures] = {}
     for v in members:
