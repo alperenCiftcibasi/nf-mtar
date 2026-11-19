@@ -13,7 +13,8 @@
   değil, fonksiyon argümanı) veya SGD momentum 0,9 (η = 0,01·exp(−epoch/500)); en çok max_epochs; doğrulama MSE'si
   `patience` epoch iyileşmezse durur; en iyi doğrulama durumu geri yüklenir.
 - Değerlendirme (`evaluate`): MSE; grup (aynı durum × topoloji) içinde Spearman (ortalama), top-1 uyumu
-  (argmax f = argmax kâhin), pişmanlık (kâhin_en_iyi − kâhin_seçilen).
+  (argmax f = argmax kâhin), pişmanlık (kâhin_en_iyi − kâhin_seçilen), yakın-en-iyi oranı (seçilenin kâhin skoru
+  ≥ en iyi − 0,05; §5.22). §5.22: ANA ölçütler pişmanlık ve Spearman; top-1 ve yakın-en-iyi yardımcı.
 """
 
 from __future__ import annotations
@@ -118,8 +119,9 @@ def train(spec: FuzzySpec, X_tr, y_tr, X_val, y_val, reg_mode: str = "anchored",
     return TrainResult(model.to_params(), best[2], best[0], history)
 
 
-def evaluate(f: np.ndarray, y: np.ndarray, groups: np.ndarray) -> dict[str, float]:
-    """MSE, grup içi Spearman (ortalama), top-1 uyumu, pişmanlık (§5.16).
+def evaluate(f: np.ndarray, y: np.ndarray, groups: np.ndarray, near_best_margin: float = 0.05) -> dict[str, float]:
+    """MSE, grup içi Spearman (ortalama), top-1 uyumu, pişmanlık (§5.16), yakın-en-iyi oranı (§5.22: seçilen adayın
+    kâhin skoru ≥ en iyi − near_best_margin; config training.near_best_margin = 0,05).
 
     Gruplar bir kez sıralanıp dilimlenir (büyük veride grup başına tam maske O(G·n) yerine O(n log n)); grup içinde
     satır sırası korunur (kararlı sıralama), bu yüzden argmax eşitlikleri eski uygulamayla aynı kırılır."""
@@ -129,7 +131,7 @@ def evaluate(f: np.ndarray, y: np.ndarray, groups: np.ndarray) -> dict[str, floa
     fs, ys = f[order], y[order]
     _, starts = np.unique(groups[order], return_index=True)
     bounds = [*starts.tolist(), len(order)]
-    rhos, top1, regret = [], [], []
+    rhos, top1, regret, near = [], [], [], []
     for a, b in zip(bounds[:-1], bounds[1:]):
         fg, yg = fs[a:b], ys[a:b]
         if len(fg) < 2:
@@ -139,7 +141,9 @@ def evaluate(f: np.ndarray, y: np.ndarray, groups: np.ndarray) -> dict[str, floa
         chosen = int(np.argmax(fg))
         top1.append(float(chosen == int(np.argmax(yg))))
         regret.append(float(yg.max() - yg[chosen]))
+        near.append(float(yg[chosen] >= yg.max() - near_best_margin - 1e-12))
     out["spearman"] = float(np.mean(rhos)) if rhos else float("nan")
     out["top1"] = float(np.mean(top1))
     out["regret"] = float(np.mean(regret))
+    out["near_best"] = float(np.mean(near))
     return out

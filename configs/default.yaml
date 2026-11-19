@@ -297,7 +297,9 @@ training:                                # §5.16 nöral öğrenme (ANFIS tarzı
   online_finetune:
     enabled: false                       # §5.16 çevrimiçi ince ayar opsiyonel
     lr_min: 0.0005                       # §5.16 η_min = 5e-4
-  evaluation: [mse, spearman, top1_agreement, regret, term_order_violations, learning_curve]  # §5.16 doğrulama ölçütleri
+  evaluation: [mse, spearman, top1_agreement, regret, near_best, term_order_violations, learning_curve]  # §5.16 doğrulama ölçütleri
+  primary_metrics: [regret, spearman]    # §5.22 ANA ölçütler; top-1 ve near_best yardımcı; λ seçimi doğrulama pişmanlığıyla
+  near_best_margin: 0.05                 # §5.22 yakın-en-iyi oranı: seçilen adayın kâhin skoru >= en iyi - 0,05
 
 rank:                                    # §5.17 R(v) = w1·(1 - f_norm) + w2·H/H_max + w3·C/C_max ; r* = argmin R
   weights:                               # §5.17 topolojiye özgü sabit ağırlıklar (w1, w2, w3)

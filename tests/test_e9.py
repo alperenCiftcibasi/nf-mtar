@@ -120,3 +120,16 @@ def test_anchored_cov_keeps_coverage_better_than_anchored(spec):
     ca = interpretability_report(spec, a.params)["coverage_min"]
     cb = interpretability_report(spec, b.params)["coverage_min"]
     assert cb > ca
+
+
+def test_evaluate_near_best_ratio_hand_example():
+    """§5.22 yakın-en-iyi oranı: seçilenin kâhin skoru ≥ en iyi − 0,05. Grup 1: en iyi 1,0, seçilen 0,97 -> top-1 0,
+    yakın-en-iyi 1, pişmanlık 0,03; grup 2: seçilen 0,5 (en iyi 0,9) -> 0, 0, 0,4; grup 3: tam isabet -> 1, 1, 0."""
+    y = np.array([1.0, 0.97, 0.2, 0.9, 0.5, 0.1, 0.3, 0.8])
+    f = np.array([0.1, 0.9, 0.0, 0.2, 0.7, 0.1, 0.1, 0.6])
+    g = np.array([1, 1, 1, 2, 2, 2, 3, 3])
+    m = evaluate(f, y, g)
+    assert m["top1"] == pytest.approx(1 / 3) and m["near_best"] == pytest.approx(2 / 3)
+    assert m["regret"] == pytest.approx((0.03 + 0.4 + 0.0) / 3)
+    assert evaluate(f, y, g, near_best_margin=0.0)["near_best"] == pytest.approx(1 / 3)
+    assert load_config().training["near_best_margin"] == 0.05
