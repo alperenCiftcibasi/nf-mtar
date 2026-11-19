@@ -224,7 +224,7 @@ engine:                                  # §5.11, §5.12 yöntemler (yalnızca 
   default_method: NF-MTAR
   static_root_rule: nearest_to_edge      # §5.12 sabit root: topolojinin edge router'a en yakın düğümü
   static_root_reselect_on_death: true    # §5.12 root ölürse aynı kuralla yenisi seçilir (adillik kararı)
-  trained_model: results/models/e9_lite_anchored.json   # §5.16/§5.20 NF-MTAR parametreleri: E9-lite anchored, λ = 1e-2 (experiments/e9_lite.py)
+  trained_model: results/models/nfmtar_main.json   # §5.22 NF-MTAR ana modeli: anchored+cov, λ = 1e-3, tekrar 0 (doğrulama pişmanlığıyla seçildi; experiments/e9_full.py)
   methods:
     B1-plain: {scoring: none,            root: static,  path_cost: hop,           learning: false, hysteresis: false, vsdn_policy: false}  # tek FIFO kuyruk, sınıf önceliği yok
     B1:       {scoring: none,            root: static,  path_cost: hop,           learning: false, hysteresis: false, vsdn_policy: true}

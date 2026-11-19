@@ -19,6 +19,7 @@
 | Full experiments: E1 with 30 seeds, load 1, B1-plain and NF-MTAR; E2, E3 (packet logs), E4, E5 (30 seeds), E8, E9 network part | **missing** |
 | Report and presentation PDFs | submitted 16 Nov (`report/report.pdf`, `presentation/presentation.pdf`, repo `aefc282`) |
 | P1 first half (§5.21): rich training data (`data/e9_rich.npz`, 20 seeds × 3 loads × B1/B3, 2 J, 1800 s; `e9_data_summary.csv`), top-1 diagnosis (`top1_*.csv`), E9-lite rerun on rich data at λ = 1e-2 (`e9_lambda_rich.csv`, `e9_rich_vs_lite.csv`) | done |
+| Full E9 (§5.22, contribution K1): {none, zero_l2, anchored, anchored+cov} × λ ∈ {1e-3, 3e-3, 1e-2, 3e-2, 1e-1} × 3 repeats on the rich data (x2 = radio busy ratio), λ chosen per mode by validation regret (`e9_full_grid.csv`, `e9_full_selected.csv`, K1 comparison `e9_full_k1_cov_vs_anchored.csv`, `e9_pareto.png`, `e9_terms_x*.png`); NF-MTAR main model `results/models/nfmtar_main.json` (anchored+cov, λ = 1e-3), default in config | done |
 | Post-submission plan (CLAUDE.md §5.21): P0 repo + traffic trigger; P1 richer training data, top-1 diagnosis, full E9; P2–P4 full experiments and live demo. Evaluations after 18 Nov use new seeds (11+); seeds 1–10 are the development set | in progress |
 
 
@@ -219,6 +220,11 @@ python experiments/build_training_data.py --seeds $(seq 101 120) --val-seeds 115
 python experiments/analysis/e9_data_summary.py                   # -> results/tables/e9_data_summary.csv (x1-x5, oracle)
 python experiments/analysis/top1_diagnosis.py                    # -> results/tables/top1_*.csv (§5.21 top-1 diagnosis)
 python experiments/e9_lambda.py --data data/e9_rich.npz --lams 1e-2 --tag rich   # E9-lite rerun on rich data
+
+# Full E9 (CLAUDE.md §5.22): 49 trainings on a fixed 200k-row subsample, ~2.5 h on 5 workers (~0.7 GB RAM each)
+python experiments/e9_full.py --workers 5                        # -> e9_full_*.csv, e9_pareto.png, e9_terms_x*.png,
+                                                                 #    results/models/e9_full/*.json, nfmtar_main.json
+python experiments/e9_full.py --from-csv                         # rebuild tables/figures from e9_full_reps.csv
 ```
 
 ## Repository Structure
